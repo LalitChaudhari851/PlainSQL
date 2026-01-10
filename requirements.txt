@@ -1,0 +1,21 @@
+# Core Framework
+langchain==0.3.0
+langchain-community
+langchain-core
+
+# Google Gemini Integration
+langchain-google-genai
+google-generativeai
+
+# Database & Vector Store
+sqlalchemy
+pymysql
+chromadb
+langchain-chroma
+
+# Utilities
+python-dotenv
+streamlit
+
+# Critical Version Fixes
+numpy<2.0.0
