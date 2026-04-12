@@ -1,0 +1,142 @@
+[
+    {
+        "id": "eval_001",
+        "question": "Show top 5 employees by salary",
+        "expected_sql": "SELECT name, salary FROM employees ORDER BY salary DESC LIMIT 5",
+        "difficulty": "easy",
+        "category": "data_query"
+    },
+    {
+        "id": "eval_002",
+        "question": "What is the total sales revenue?",
+        "expected_sql": "SELECT SUM(total_amount) as total_revenue FROM sales",
+        "difficulty": "easy",
+        "category": "aggregation"
+    },
+    {
+        "id": "eval_003",
+        "question": "Total sales revenue by region",
+        "expected_sql": "SELECT c.region, SUM(s.total_amount) as revenue FROM sales s JOIN customers c ON s.customer_id = c.id GROUP BY c.region",
+        "difficulty": "medium",
+        "category": "aggregation"
+    },
+    {
+        "id": "eval_004",
+        "question": "Which department has the highest average salary?",
+        "expected_sql": "SELECT d.name, AVG(e.salary) as avg_salary FROM employees e JOIN departments d ON e.department_id = d.id GROUP BY d.name ORDER BY avg_salary DESC LIMIT 1",
+        "difficulty": "medium",
+        "category": "aggregation"
+    },
+    {
+        "id": "eval_005",
+        "question": "Show me products with low stock",
+        "expected_sql": "SELECT name, stock_quantity FROM products WHERE stock_quantity < 50 ORDER BY stock_quantity ASC",
+        "difficulty": "easy",
+        "category": "data_query"
+    },
+    {
+        "id": "eval_006",
+        "question": "How many employees are in each department?",
+        "expected_sql": "SELECT d.name as department, COUNT(e.id) as employee_count FROM employees e JOIN departments d ON e.department_id = d.id GROUP BY d.name",
+        "difficulty": "medium",
+        "category": "aggregation"
+    },
+    {
+        "id": "eval_007",
+        "question": "List all customers from North America",
+        "expected_sql": "SELECT name, company, join_date FROM customers WHERE region = 'North America'",
+        "difficulty": "easy",
+        "category": "data_query"
+    },
+    {
+        "id": "eval_008",
+        "question": "Who are the top 3 salespeople by total revenue?",
+        "expected_sql": "SELECT e.name, SUM(s.total_amount) as total_revenue FROM sales s JOIN employees e ON s.employee_id = e.id GROUP BY e.name ORDER BY total_revenue DESC LIMIT 3",
+        "difficulty": "hard",
+        "category": "aggregation"
+    },
+    {
+        "id": "eval_009",
+        "question": "What is the most expensive product?",
+        "expected_sql": "SELECT name, price FROM products ORDER BY price DESC LIMIT 1",
+        "difficulty": "easy",
+        "category": "data_query"
+    },
+    {
+        "id": "eval_010",
+        "question": "Show monthly sales trends",
+        "expected_sql": "SELECT DATE_FORMAT(sale_date, '%Y-%m') as month, SUM(total_amount) as revenue FROM sales GROUP BY month ORDER BY month",
+        "difficulty": "medium",
+        "category": "aggregation"
+    },
+    {
+        "id": "eval_011",
+        "question": "Which product category generates the most revenue?",
+        "expected_sql": "SELECT p.category, SUM(s.total_amount) as revenue FROM sales s JOIN products p ON s.product_id = p.id GROUP BY p.category ORDER BY revenue DESC",
+        "difficulty": "medium",
+        "category": "aggregation"
+    },
+    {
+        "id": "eval_012",
+        "question": "List employees hired in the last year",
+        "expected_sql": "SELECT name, hire_date, role FROM employees WHERE hire_date >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)",
+        "difficulty": "easy",
+        "category": "data_query"
+    },
+    {
+        "id": "eval_013",
+        "question": "Compare sales between North America and Europe",
+        "expected_sql": "SELECT c.region, COUNT(s.id) as num_sales, SUM(s.total_amount) as total_revenue FROM sales s JOIN customers c ON s.customer_id = c.id WHERE c.region IN ('North America', 'Europe') GROUP BY c.region",
+        "difficulty": "hard",
+        "category": "comparison"
+    },
+    {
+        "id": "eval_014",
+        "question": "Show departments and their total budget",
+        "expected_sql": "SELECT name, budget, location FROM departments ORDER BY budget DESC",
+        "difficulty": "easy",
+        "category": "data_query"
+    },
+    {
+        "id": "eval_015",
+        "question": "What is the average order value?",
+        "expected_sql": "SELECT AVG(total_amount) as avg_order_value FROM sales",
+        "difficulty": "easy",
+        "category": "aggregation"
+    },
+    {
+        "id": "eval_016",
+        "question": "Which customers have made the most purchases?",
+        "expected_sql": "SELECT c.name, c.company, COUNT(s.id) as purchase_count, SUM(s.total_amount) as total_spent FROM sales s JOIN customers c ON s.customer_id = c.id GROUP BY c.id, c.name, c.company ORDER BY purchase_count DESC LIMIT 10",
+        "difficulty": "hard",
+        "category": "aggregation"
+    },
+    {
+        "id": "eval_017",
+        "question": "Show all managers and their salaries",
+        "expected_sql": "SELECT name, salary, department_id FROM employees WHERE role = 'Manager' ORDER BY salary DESC",
+        "difficulty": "easy",
+        "category": "data_query"
+    },
+    {
+        "id": "eval_018",
+        "question": "What percentage of total sales comes from each region?",
+        "expected_sql": "SELECT c.region, SUM(s.total_amount) as revenue, ROUND(SUM(s.total_amount) * 100.0 / (SELECT SUM(total_amount) FROM sales), 2) as percentage FROM sales s JOIN customers c ON s.customer_id = c.id GROUP BY c.region ORDER BY percentage DESC",
+        "difficulty": "hard",
+        "category": "aggregation"
+    },
+    {
+        "id": "eval_019",
+        "question": "Find products that have never been sold",
+        "expected_sql": "SELECT p.name, p.category, p.price FROM products p LEFT JOIN sales s ON p.id = s.product_id WHERE s.id IS NULL",
+        "difficulty": "hard",
+        "category": "data_query"
+    },
+    {
+        "id": "eval_020",
+        "question": "Show the salary distribution across roles",
+        "expected_sql": "SELECT role, COUNT(*) as count, AVG(salary) as avg_salary, MIN(salary) as min_salary, MAX(salary) as max_salary FROM employees GROUP BY role",
+        "difficulty": "medium",
+        "category": "aggregation"
+    }
+]

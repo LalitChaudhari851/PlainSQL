@@ -1,1 +1,49 @@
-.env 
+# ── Python ───────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+
+# ── Virtual Environments ─────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── Environment / Secrets ────────────────────────────────
+.env
+.env.local
+.env.production
+
+# ── ChromaDB ─────────────────────────────────────────────
+chroma_db/
+
+# ── IDE ──────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── OS ───────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Testing ──────────────────────────────────────────────
+.pytest_cache/
+htmlcov/
+.coverage
+
+# ── AI Assistants ────────────────────────────────────────
+.zencoder/
+.zenflow/
+.gemini/
+
+# ── Node (frontend) ─────────────────────────────────────
+node_modules/
+.next/
+out/
+
+# ── Evaluation Results ──────────────────────────────────
+evaluation_results.json
