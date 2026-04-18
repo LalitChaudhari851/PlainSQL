@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PlainSQL | AI Data Workspace</title>
+  <meta name="description" content="Chat with your database, generate SQL, inspect results, and visualize answers in an AI data workspace.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect rx='16' width='100' height='100' fill='%236366f1'/><text x='50' y='68' text-anchor='middle' font-size='48' font-weight='bold' fill='white'>S</text></svg>">
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="scrim" data-action="close-sidebar"></div>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <main class="workspace" aria-label="AI data chat workspace">
+      <header class="topbar">
+        <button class="mobile-menu" type="button" data-action="open-sidebar" aria-label="Open sidebar">☰</button>
+        <div class="conversation-title">
+          <h1 id="conversationTitle">PlainSQL</h1>
+          <p id="conversationSubtitle">Text-to-SQL workspace</p>
+        </div>
+        <div class="top-actions">
+          <span class="chip" id="healthChip">Checking</span>
+          <button class="ghost-action" type="button" data-action="new-chat">New chat</button>
+        </div>
+      </header>
+
+      <section class="chat-scroll" id="chatScroll">
+        <div class="chat-inner" id="chatRoot"></div>
+      </section>
+
+      <section class="composer" aria-label="Ask your database">
+        <div class="composer-inner">
+          <div class="suggestions" id="suggestions"></div>
+          <form class="composer-form" id="composerForm">
+            <textarea id="promptInput" rows="1" placeholder="Ask about revenue, customers, stock, salaries, trends..." autocomplete="off" spellcheck="true"></textarea>
+            <button class="send-button" id="sendButton" type="submit" aria-label="Send question"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg></button>
+          </form>
+          <div class="composer-hint">
+            <span>Enter to send. Shift + Enter for a new line.</span>
+            <span>Generated SQL should be reviewed before business decisions.</span>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toasts" id="toasts" aria-live="polite" aria-atomic="true"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

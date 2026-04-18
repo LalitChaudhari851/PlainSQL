@@ -1,0 +1,57 @@
+# ── Production Dockerfile ─────────────────────────────────
+# Multi-stage build with Gunicorn + Uvicorn workers
+# Uses slim base, non-root user, and production-tuned settings
+
+# Stage 1: Dependencies
+FROM python:3.11-slim AS deps
+
+WORKDIR /app
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir gunicorn
+
+# Stage 2: Production Runtime
+FROM python:3.11-slim AS runtime
+
+# Install only minimal runtime deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy installed packages from deps stage
+COPY --from=deps /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=deps /usr/local/bin /usr/local/bin
+
+# Copy application code
+COPY backend/ .
+COPY frontend/ /frontend/
+
+# Create non-root user
+RUN useradd -m -r -s /bin/false plainsql && \
+    chown -R plainsql:plainsql /app && \
+    mkdir -p /app/chroma_db && \
+    chown -R plainsql:plainsql /app/chroma_db
+
+USER plainsql
+
+# Health check using curl (more reliable than python import)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+    CMD curl -sf http://localhost:8000/api/v1/health || exit 1
+
+EXPOSE 8000
+
+# Production: Gunicorn with Uvicorn workers for multi-process concurrency
+# - workers: 2-4x CPU cores (default 4 here, override via env)
+# - timeout: generous for LLM calls
+# - graceful-timeout: allow in-flight requests to complete
+CMD ["gunicorn", "app.main:app", \
+     "--worker-class", "uvicorn.workers.UvicornWorker", \
+     "--workers", "4", \
+     "--bind", "0.0.0.0:8000", \
+     "--timeout", "120", \
+     "--graceful-timeout", "30", \
+     "--keep-alive", "5", \
+     "--access-logfile", "-", \
+     "--error-logfile", "-"]

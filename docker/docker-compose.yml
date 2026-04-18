@@ -1,0 +1,91 @@
+name: plainsql
+version: "3.9"
+
+services:
+  # ── PlainSQL API Server ────────────────────────────────
+  api:
+    image: plainsql-api
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: plainsql-api
+    ports:
+      - "8000:8000"
+    env_file:
+      - ../.env
+    environment:
+      DB_URI: mysql+pymysql://root:plainsql_dev_password@mysql:3306/chatbot
+      REDIS_URL: redis://redis:6379/0
+      DISABLE_VECTOR_RAG: "true"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - chroma_data:/app/chroma_db
+    restart: unless-stopped
+    networks:
+      - plainsql-net
+
+  # ── Redis Cache ────────────────────────────────────────
+  mysql:
+    image: mysql:8.4
+    container_name: plainsql-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: plainsql_dev_password
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ../db.sql:/docker-entrypoint-initdb.d/01-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - plainsql-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: plainsql-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - plainsql-net
+
+  # ── Frontend (serves static HTML) ──────────────────────
+  frontend:
+    image: nginx:alpine
+    container_name: plainsql-frontend
+    ports:
+      - "3000:80"
+    volumes:
+      - ../frontend:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - plainsql-net
+
+volumes:
+  chroma_data:
+    driver: local
+  redis_data:
+    driver: local
+  mysql_data:
+    driver: local
+
+networks:
+  plainsql-net:
+    driver: bridge

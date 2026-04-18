@@ -1,0 +1,10 @@
+{
+    "note": "Placeholder — run `python -m evaluation.runner` to generate baseline results",
+    "total_queries": 0,
+    "exact_match_rate": 0,
+    "execution_accuracy": 0,
+    "avg_structural_similarity": 0,
+    "total_hallucinations": 0,
+    "avg_latency_ms": 0,
+    "results": []
+}
