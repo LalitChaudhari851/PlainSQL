@@ -50,6 +50,10 @@ class AgentState(TypedDict, total=False):
     sanitized_sql: str                 # SQL after safety modifications (LIMIT injection, etc.)
     retry_count: int                   # Number of regeneration attempts
 
+    # ── Output Guardrail Results ─────────────────────────
+    guardrail_warnings: list[str]      # Hallucinated reference warnings
+    guardrail_confidence: float        # LLM output confidence score (0.0-1.0)
+
     # ── Execution Agent Output ───────────────────────────
     query_results: list[dict]          # Raw query results
     execution_time_ms: float           # Query execution duration

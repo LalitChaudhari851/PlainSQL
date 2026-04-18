@@ -1,11 +1,12 @@
 """
-LangGraph Orchestrator — Wires all 6 agents into a DAG with conditional routing.
+LangGraph Orchestrator — Wires all 7 agents into a DAG with conditional routing.
 This is the core of the multi-agent architecture.
-Includes pipeline timeout protection and graceful degradation.
+Includes pipeline timeout protection, output guardrails, and graceful degradation.
 """
 
 import uuid
 import time
+import asyncio
 import structlog
 from langgraph.graph import StateGraph, END
 
@@ -16,6 +17,7 @@ from app.agents.sql_generation import sql_generation_node
 from app.agents.sql_validation import sql_validation_node, route_validation
 from app.agents.execution import execution_node
 from app.agents.visualization import visualization_node
+from app.agents.guardrails import OutputGuardrail
 
 logger = structlog.get_logger()
 
@@ -39,7 +41,30 @@ class AgentOrchestrator:
         self.llm_router = llm_router
         self.rag_retriever = rag_retriever
         self.db_pool = db_pool
+
+        # ── Initialize Output Guardrail with live schema ──
+        self.guardrail = self._init_guardrail(db_pool)
+
         self.graph = self._build_graph()
+
+    @staticmethod
+    def _init_guardrail(db_pool) -> OutputGuardrail:
+        """Build the OutputGuardrail from the live database schema."""
+        try:
+            tables = db_pool.get_tables()
+            known_columns = {}
+            for table in tables:
+                cols = db_pool.get_table_schema(table)
+                known_columns[table] = {c["name"] for c in cols}
+            guardrail = OutputGuardrail(
+                known_tables=set(tables),
+                known_columns=known_columns,
+            )
+            logger.info("guardrail_initialized", tables=len(tables))
+            return guardrail
+        except Exception as e:
+            logger.warning("guardrail_init_failed", error=str(e))
+            return OutputGuardrail()
 
     def _build_graph(self) -> StateGraph:
         """Construct the LangGraph agent pipeline."""
@@ -51,6 +76,7 @@ class AgentOrchestrator:
         graph.add_node("handle_meta", self._handle_meta)
         graph.add_node("retrieve_schema", self._retrieve_schema)
         graph.add_node("generate_sql", self._generate_sql)
+        graph.add_node("guardrail_check", self._guardrail_check)
         graph.add_node("validate_sql", self._validate_sql)
         graph.add_node("execute_query", self._execute_query)
         graph.add_node("visualize", self._visualize)
@@ -65,6 +91,7 @@ class AgentOrchestrator:
             self._route_by_intent,
             {
                 "chat": "handle_chat",
+                "ambiguous": "handle_chat",
                 "meta_query": "retrieve_schema",
                 "data_query": "retrieve_schema",
                 "aggregation": "retrieve_schema",
@@ -82,7 +109,8 @@ class AgentOrchestrator:
                 "sql": "generate_sql",
             },
         )
-        graph.add_edge("generate_sql", "validate_sql")
+        graph.add_edge("generate_sql", "guardrail_check")
+        graph.add_edge("guardrail_check", "validate_sql")
 
         # ── Conditional routing after validation ─────────
         graph.add_conditional_edges(
@@ -116,6 +144,40 @@ class AgentOrchestrator:
     def _generate_sql(self, state: AgentState) -> dict:
         return self._safe_execute("sql_generation", sql_generation_node, state, self.llm_router)
 
+    def _guardrail_check(self, state: AgentState) -> dict:
+        """Run output guardrails to catch hallucinated table/column references."""
+        return self._safe_execute("guardrail_check", self._run_guardrail, state)
+
+    def _run_guardrail(self, state: AgentState) -> dict:
+        """Execute guardrail validation on the generated SQL."""
+        sql = state.get("generated_sql", "")
+        if not sql:
+            return {}
+
+        warnings = self.guardrail.validate_sql_references(sql)
+        confidence = self.guardrail.score_confidence(sql)
+
+        if warnings:
+            logger.warning(
+                "guardrail_warnings",
+                trace_id=state.get("trace_id"),
+                warnings=warnings,
+                confidence=confidence,
+            )
+
+        # If many hallucinations are detected, bump retry count to trigger regeneration
+        if len(warnings) >= 3:
+            return {
+                "is_valid": False,
+                "validation_errors": [f"Schema grounding failed: {w}" for w in warnings],
+                "retry_count": state.get("retry_count", 0) + 1,
+            }
+
+        return {
+            "guardrail_warnings": warnings,
+            "guardrail_confidence": confidence,
+        }
+
     def _validate_sql(self, state: AgentState) -> dict:
         return self._safe_execute("sql_validation", sql_validation_node, state)
 
@@ -128,15 +190,27 @@ class AgentOrchestrator:
     def _safe_execute(self, agent_name: str, func, *args) -> dict:
         """
         Wrapper that catches per-agent exceptions for graceful degradation.
+        Records per-agent latency metrics for pipeline bottleneck analysis.
         Non-critical agents (visualization) failing won't crash the pipeline.
         """
+        from app.observability.metrics import metrics
+        start = time.perf_counter()
         try:
-            return func(*args)
+            result = func(*args)
+            elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
+            metrics.observe("plainsql_agent_latency_ms", elapsed_ms, {"agent": agent_name})
+            logger.info("agent_completed", agent=agent_name, elapsed_ms=elapsed_ms,
+                        trace_id=args[0].get("trace_id", "unknown") if args else "unknown")
+            return result
         except Exception as e:
+            elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
+            metrics.observe("plainsql_agent_latency_ms", elapsed_ms, {"agent": agent_name})
+            metrics.increment("plainsql_agent_errors_total", {"agent": agent_name})
             logger.error(
                 "agent_failed",
                 agent=agent_name,
                 error=str(e),
+                elapsed_ms=elapsed_ms,
                 trace_id=args[0].get("trace_id", "unknown") if args else "unknown",
             )
             # For non-critical agents, return empty results
@@ -205,7 +279,7 @@ class AgentOrchestrator:
     def _route_by_intent(state: AgentState) -> str:
         """Route to appropriate handler based on classified intent."""
         route_intent = state.get("route_intent", state.get("intent", "data_query"))
-        valid_routes = {"chat", "meta_query", "data_query", "aggregation", "comparison", "explanation"}
+        valid_routes = {"chat", "ambiguous", "meta_query", "data_query", "aggregation", "comparison", "explanation"}
         return route_intent if route_intent in valid_routes else "data_query"
 
     @staticmethod
@@ -225,7 +299,7 @@ class AgentOrchestrator:
         user_role: str = "analyst",
     ) -> AgentState:
         """
-        Process a natural language query through the full agent pipeline.
+        Process a natural language query through the full agent pipeline (sync).
         Returns the final AgentState with all results.
         Enforces a pipeline-level timeout to prevent runaway processing.
         """
@@ -265,6 +339,8 @@ class AgentOrchestrator:
                     timeout_ms=PIPELINE_TIMEOUT_SECONDS * 1000,
                 )
 
+            final_state["execution_time_ms"] = elapsed_ms
+
             logger.info(
                 "pipeline_completed",
                 trace_id=trace_id,
@@ -287,4 +363,25 @@ class AgentOrchestrator:
                 "friendly_message": "An unexpected error occurred. Please try again.",
                 "query_results": [],
                 "row_count": 0,
+                "execution_time_ms": elapsed_ms,
             }
+
+    async def aprocess_query(
+        self,
+        user_query: str,
+        conversation_history: list[dict] = None,
+        tenant_id: str = "default",
+        user_role: str = "analyst",
+    ) -> AgentState:
+        """
+        Async version of process_query.
+        Runs the synchronous LangGraph pipeline in a thread pool
+        to avoid blocking the FastAPI event loop.
+        """
+        return await asyncio.to_thread(
+            self.process_query,
+            user_query=user_query,
+            conversation_history=conversation_history,
+            tenant_id=tenant_id,
+            user_role=user_role,
+        )

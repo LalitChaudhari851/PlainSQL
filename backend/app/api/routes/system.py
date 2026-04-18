@@ -44,32 +44,37 @@ def create_system_router(auth_service, auth_dep, db_pool, rag_retriever, llm_rou
 
     @auth_router.post("/register", response_model=TokenResponse)
     def register(request: RegisterRequest):
-        """Register a new user."""
+        """Register a new user. Self-registration is always 'viewer' role.
+        Only admins can promote users via a separate endpoint."""
         if request.username in user_store:
             raise HTTPException(400, "Username already exists")
 
         password_hash = auth_service.hash_password(request.password)
         user_id = f"user_{len(user_store) + 1}"
 
+        # SECURITY: Self-registration is always viewer.
+        # Elevated roles (analyst, admin) must be granted by an existing admin.
+        assigned_role = "viewer"
+
         user_store[request.username] = {
             "id": user_id,
             "username": request.username,
             "email": request.email,
             "password_hash": password_hash,
-            "role": request.role if request.role in ["viewer", "analyst", "admin"] else "viewer",
+            "role": assigned_role,
             "tenant_id": request.tenant_id,
         }
 
         token = auth_service.create_access_token(
             user_id=user_id,
             username=request.username,
-            role=request.role,
+            role=assigned_role,
             tenant_id=request.tenant_id,
         )
 
         return TokenResponse(
             access_token=token,
-            role=request.role,
+            role=assigned_role,
             tenant_id=request.tenant_id,
         )
 
@@ -161,52 +166,25 @@ def create_system_router(auth_service, auth_dep, db_pool, rag_retriever, llm_rou
             uptime_seconds=round(_time.time() - start_time, 2),
         )
 
-    @health_router.get("/api/v1/metrics")
-    def prometheus_metrics():
-        """
-        Expose metrics in Prometheus text exposition format.
-        Enables Grafana dashboards without requiring prometheus_client dependency.
-        """
-        from fastapi.responses import PlainTextResponse
-        from app.observability.metrics import metrics
+    # NOTE: Prometheus metrics endpoint moved to /api/v1/metrics/prometheus
+    # in monitoring.py to avoid duplicate metrics systems.
 
-        lines = []
-        # Counters
-        for key, value in metrics.counters.items():
-            safe_key = key.replace("{", "_").replace("}", "").replace(",", "_").replace('"', "").replace("=", "_")
-            lines.append(f"# TYPE {safe_key} counter")
-            lines.append(f"{safe_key} {value}")
-
-        # Gauges
-        for key, value in metrics.gauges.items():
-            safe_key = key.replace("{", "_").replace("}", "").replace(",", "_").replace('"', "").replace("=", "_")
-            lines.append(f"# TYPE {safe_key} gauge")
-            lines.append(f"{safe_key} {value}")
-
-        # Histograms (summary stats)
-        for key, values in metrics.histograms.items():
-            if values:
-                safe_key = key.replace("{", "_").replace("}", "").replace(",", "_").replace('"', "").replace("=", "_")
-                stats = metrics.get_histogram_stats(key)
-                lines.append(f"# TYPE {safe_key} summary")
-                lines.append(f'{safe_key}_count {stats["count"]}')
-                lines.append(f'{safe_key}_avg {stats["avg"]}')
-                lines.append(f'{safe_key}_p50 {stats["p50"]}')
-                lines.append(f'{safe_key}_p95 {stats["p95"]}')
-
-        return PlainTextResponse("\n".join(lines) + "\n", media_type="text/plain")
 
     @health_router.get("/api/v1/pool-status")
-    def pool_status():
-        """Database connection pool statistics."""
+    def pool_status(current_user: dict = Depends(auth_dep)):
+        """Database connection pool statistics (admin only)."""
+        if current_user.get("role") != "admin":
+            raise HTTPException(403, "Only admins can view pool status")
         try:
             return db_pool.get_pool_status()
         except Exception as e:
             return {"error": str(e)}
 
     @health_router.get("/api/v1/prompt-templates")
-    def list_prompt_templates():
-        """List all registered prompt templates and their versions."""
+    def list_prompt_templates(current_user: dict = Depends(auth_dep)):
+        """List all registered prompt templates and their versions (admin only)."""
+        if current_user.get("role") != "admin":
+            raise HTTPException(403, "Only admins can view prompt templates")
         from app.prompts.registry import get_prompt_registry
         return get_prompt_registry().list_templates()
 

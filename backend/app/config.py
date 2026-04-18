@@ -4,9 +4,11 @@ All secrets loaded from .env, with sensible defaults for local dev.
 """
 
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, model_validator
 from typing import Optional
 from functools import lru_cache
+
+_JWT_DEFAULT = "change-me-in-production-use-openssl-rand-hex-32"
 
 
 class Settings(BaseSettings):
@@ -30,7 +32,7 @@ class Settings(BaseSettings):
     CACHE_TTL_SECONDS: int = 300
 
     # ── Authentication ───────────────────────────────────
-    JWT_SECRET_KEY: str = Field(default="change-me-in-production-use-openssl-rand-hex-32")
+    JWT_SECRET_KEY: str = Field(default=_JWT_DEFAULT)
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRY_HOURS: int = 8
 
@@ -68,6 +70,21 @@ class Settings(BaseSettings):
         "case_sensitive": True,
         "extra": "ignore",
     }
+
+    @model_validator(mode="after")
+    def _validate_production_secrets(self) -> "Settings":
+        """Prevent deployment with default secrets in production/staging."""
+        if self.ENV in ("production", "staging"):
+            if self.JWT_SECRET_KEY == _JWT_DEFAULT:
+                raise ValueError(
+                    "FATAL: JWT_SECRET_KEY must be changed from the default value "
+                    "in production/staging. Generate one with: openssl rand -hex 32"
+                )
+            if len(self.JWT_SECRET_KEY) < 32:
+                raise ValueError(
+                    "FATAL: JWT_SECRET_KEY must be at least 32 characters for production."
+                )
+        return self
 
 
 @lru_cache()

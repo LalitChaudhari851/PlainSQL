@@ -29,12 +29,18 @@ class MetricsCollector:
 
     # ── Histograms ───────────────────────────────────────
 
+    # Maximum observations kept per histogram key (sliding window)
+    _HISTOGRAM_CAP = 10_000
+
     def observe(self, name: str, value: float, labels: dict = None):
-        """Record a value in a histogram."""
+        """Record a value in a histogram (capped to prevent unbounded memory growth)."""
         key = self._make_key(name, labels)
         if key not in self.histograms:
             self.histograms[key] = []
         self.histograms[key].append(value)
+        # Sliding window: keep most recent observations when cap is hit
+        if len(self.histograms[key]) > self._HISTOGRAM_CAP:
+            self.histograms[key] = self.histograms[key][-self._HISTOGRAM_CAP // 2:]
 
     # ── Gauges ───────────────────────────────────────────
 

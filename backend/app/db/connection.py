@@ -3,6 +3,7 @@ Database Connection Pool — Production-grade pooled connections via SQLAlchemy 
 Supports multi-tenant databases via tenant_id-based connection routing.
 """
 
+import re
 import pymysql
 from sqlalchemy import create_engine, text, event
 from sqlalchemy.pool import QueuePool
@@ -12,6 +13,14 @@ from contextlib import contextmanager
 import structlog
 
 logger = structlog.get_logger()
+
+# Only allow alphanumeric + underscore in identifiers
+_SAFE_IDENTIFIER = re.compile(r'^[a-zA-Z0-9_]+$')
+
+def _validate_identifier(name: str, label: str = "identifier"):
+    """Validate that a SQL identifier contains only safe characters."""
+    if not _SAFE_IDENTIFIER.match(name):
+        raise ValueError(f"Invalid {label}: {name!r}")
 
 
 class DatabasePool:
@@ -102,7 +111,9 @@ class DatabasePool:
         """
         with self._engine.begin() as conn:
             if params:
-                conn.execute(text(query), dict(enumerate(params)))
+                # Build named params dict matching :p0, :p1, :p2... placeholders
+                param_dict = {f"p{i}": v for i, v in enumerate(params)}
+                conn.execute(text(query), param_dict)
             else:
                 conn.execute(text(query))
 
@@ -113,7 +124,7 @@ class DatabasePool:
 
     def get_table_schema(self, table_name: str) -> list[dict]:
         """Returns column details for a specific table."""
-        # Use backtick quoting for safety, but table name is from our own DB metadata
+        _validate_identifier(table_name, "table_name")
         rows = self.execute_query(f"DESCRIBE `{table_name}`")
         return [
             {
@@ -140,6 +151,8 @@ class DatabasePool:
 
     def get_sample_values(self, table_name: str, column_name: str, limit: int = 5) -> list:
         """Returns sample distinct values for a column."""
+        _validate_identifier(table_name, "table_name")
+        _validate_identifier(column_name, "column_name")
         try:
             query = f"SELECT DISTINCT `{column_name}` FROM `{table_name}` LIMIT :lim"
             rows = self.execute_query(query, {"lim": limit})
@@ -196,6 +209,11 @@ class TenantRegistry:
     """
     Multi-tenant database connection registry.
     Maps tenant_id → DatabasePool for isolated data access.
+
+    NOTE: Currently scaffolding — not used in production.
+    The system operates as single-tenant with tenant_id used only for
+    cache isolation. For true multi-tenancy, instantiate this registry
+    in main.py and pass tenant-specific pools to the orchestrator.
     """
 
     def __init__(self):

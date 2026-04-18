@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PlainSQL | AI Data Workspace</title>
   <meta name="description" content="Chat with your database, generate SQL, inspect results, and visualize answers in an AI data workspace.">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect rx='16' width='100' height='100' fill='%236366f1'/><text x='50' y='68' text-anchor='middle' font-size='48' font-weight='bold' fill='white'>S</text></svg>">
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -18,16 +19,14 @@
 
     <main class="workspace" aria-label="AI data chat workspace">
       <header class="topbar">
-        <button class="mobile-menu" type="button" data-action="open-sidebar" aria-label="Open sidebar">Menu</button>
+        <button class="mobile-menu" type="button" data-action="open-sidebar" aria-label="Open sidebar">☰</button>
         <div class="conversation-title">
-          <h1 id="conversationTitle">Data analysis chat</h1>
-          <p id="conversationSubtitle">Ask in natural language. Review the SQL. Trust the result after inspection.</p>
+          <h1 id="conversationTitle">PlainSQL</h1>
+          <p id="conversationSubtitle">Text-to-SQL workspace</p>
         </div>
         <div class="top-actions">
-          <span class="chip" id="healthChip">Checking system</span>
-          <span class="chip">Read-only SQL</span>
-          <span class="chip">Multi-turn context</span>
-          <button class="ghost-action" type="button" data-action="new-chat">New analysis</button>
+          <span class="chip" id="healthChip">Checking</span>
+          <button class="ghost-action" type="button" data-action="new-chat">New chat</button>
         </div>
       </header>
 
@@ -40,7 +39,7 @@
           <div class="suggestions" id="suggestions"></div>
           <form class="composer-form" id="composerForm">
             <textarea id="promptInput" rows="1" placeholder="Ask about revenue, customers, stock, salaries, trends..." autocomplete="off" spellcheck="true"></textarea>
-            <button class="send-button" id="sendButton" type="submit" aria-label="Send question">-></button>
+            <button class="send-button" id="sendButton" type="submit" aria-label="Send question"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg></button>
           </form>
           <div class="composer-hint">
             <span>Enter to send. Shift + Enter for a new line.</span>

@@ -10,8 +10,8 @@ from typing import Literal
 import re
 
 
-IntentKind = Literal["chat", "sql"]
-RouteIntent = Literal["chat", "meta_query", "data_query", "aggregation", "comparison", "explanation"]
+IntentKind = Literal["chat", "sql", "ambiguous"]
+RouteIntent = Literal["chat", "ambiguous", "meta_query", "data_query", "aggregation", "comparison", "explanation"]
 
 
 @dataclass(frozen=True)
@@ -41,6 +41,7 @@ CHAT_PREFIXES = {
     "i need help", "i don't understand", "what do you do", "what can i ask",
     "how do i use", "tell me about you", "who made you", "are you",
     "tell me a joke", "how is the weather",
+    "tell me about yourself", "do you know about",
 }
 
 DATA_SIGNAL_PHRASES = {
@@ -48,16 +49,32 @@ DATA_SIGNAL_PHRASES = {
     "by department", "by category", "by month", "by year",
 }
 
-DATA_SIGNAL_WORDS = {
+# Strong signals — specific enough to indicate a real SQL query
+DATA_SIGNAL_WORDS_STRONG = {
     "show", "list", "find", "get", "select", "count", "total", "average",
     "avg", "sum", "top", "bottom", "highest", "lowest", "maximum",
     "minimum", "max", "min", "most", "least", "revenue", "sales",
     "salary", "salaries", "price", "stock", "spend", "employees",
     "employee", "customers", "customer", "products", "product",
-    "departments", "department", "orders", "order", "table", "tables",
-    "column", "columns", "rows", "records", "where", "between", "greater",
-    "less", "equal", "filter", "sort", "compare", "vs", "versus", "per",
-    "each", "all", "every", "join", "query", "data", "database", "report",
+    "departments", "department", "orders", "order",
+    "where", "between", "greater", "less", "equal", "filter", "sort",
+    "compare", "vs", "versus", "per", "each", "join", "query", "report",
+}
+
+# Weak signals — too generic alone, need a strong signal to confirm SQL intent
+DATA_SIGNAL_WORDS_WEAK = {
+    "table", "tables", "column", "columns", "rows", "records",
+    "all", "every", "data", "database", "info", "information",
+    "about", "details",
+}
+
+DATA_SIGNAL_WORDS = DATA_SIGNAL_WORDS_STRONG | DATA_SIGNAL_WORDS_WEAK
+
+# Known database table names — used to validate ambiguous queries
+KNOWN_TABLES = {
+    "employees", "employee", "departments", "department",
+    "products", "product", "customers", "customer",
+    "sales", "sale", "orders", "order",
 }
 
 META_KEYWORDS = {
@@ -74,27 +91,62 @@ EXPLANATION_KEYWORDS = {"explain this", "why did", "what does this query"}
 
 
 def classify_intent(user_query: str) -> IntentClassification:
-    """Classify input as chat or SQL and choose the downstream graph route."""
+    """Classify input as chat, SQL, or ambiguous and choose the downstream graph route."""
     query = _normalize(user_query)
     if not query:
         return IntentClassification("chat", "chat", reason="empty")
+
+    # Meta queries are always SQL
+    if any(kw in query for kw in META_KEYWORDS):
+        return IntentClassification(
+            "sql",
+            "meta_query",
+            complexity="simple",
+            reason="meta_keyword",
+        )
 
     has_data_signal = _has_data_signal(query)
 
     # Mixed inputs like "hi, show top 5 employees" should still be SQL.
     if has_data_signal:
-        return IntentClassification(
-            "sql",
-            _classify_sql_route(query),
-            complexity=_estimate_complexity(query),
-            reason="data_signal",
-        )
+        # Check if only weak signals present (e.g. "do you have info about admin")
+        words = set(re.findall(r"[a-z_]+", query))
+        has_strong = bool(words.intersection(DATA_SIGNAL_WORDS_STRONG))
+        has_known_table = bool(words.intersection(KNOWN_TABLES))
+        has_phrase = any(phrase in query for phrase in DATA_SIGNAL_PHRASES)
+
+        if has_strong or has_phrase or has_known_table:
+            return IntentClassification(
+                "sql",
+                _classify_sql_route(query),
+                complexity=_estimate_complexity(query),
+                reason="data_signal",
+            )
+        else:
+            # Weak signal only — ambiguous query
+            return IntentClassification(
+                "ambiguous",
+                "ambiguous",
+                complexity="simple",
+                reason="weak_data_signal_only",
+            )
 
     if _is_chat(query):
         return IntentClassification("chat", "chat", reason="chat_signal")
 
     if len(query.split()) <= 4:
         return IntentClassification("chat", "chat", reason="short_without_data_signal")
+
+    # Longer queries without any data signal — likely ambiguous
+    words = set(re.findall(r"[a-z_]+", query))
+    has_known_table = bool(words.intersection(KNOWN_TABLES))
+    if not has_known_table:
+        return IntentClassification(
+            "ambiguous",
+            "ambiguous",
+            complexity="simple",
+            reason="no_table_reference",
+        )
 
     # Preserve existing text-to-SQL behavior for ambiguous analytical requests.
     return IntentClassification(

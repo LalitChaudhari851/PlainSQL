@@ -110,13 +110,13 @@ def _parse_llm_response(response: str) -> tuple[str, str, str]:
         explanation = data.get("explanation", explanation)
     except (json.JSONDecodeError, ValueError):
         # Fallback: extract SQL from raw text
-        # Try to find SELECT...;
-        match = re.search(r"((?:WITH|SELECT)[\s\S]+?;)", response, re.IGNORECASE)
+        # Try to find SELECT...FROM...; (requires FROM to ensure it's SQL, not prose)
+        match = re.search(r"((?:WITH\s+\w+\s+AS\s*\([\s\S]+?\)\s*)?SELECT\s+[\s\S]+?\sFROM\s[\s\S]+?;)", response, re.IGNORECASE)
         if match:
             sql_query = match.group(1)
         else:
-            # Try without semicolon
-            match = re.search(r"((?:WITH|SELECT)[\s\S]+?)(?:\n\n|$)", response, re.IGNORECASE)
+            # Try without semicolon but still require FROM
+            match = re.search(r"((?:WITH\s+\w+\s+AS\s*\([\s\S]+?\)\s*)?SELECT\s+[\s\S]+?\sFROM\s[\s\S]+?)(?:\n\n|$)", response, re.IGNORECASE)
             if match:
                 sql_query = match.group(1)
 

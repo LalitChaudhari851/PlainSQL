@@ -35,6 +35,10 @@ bcrypt>=4.0.0
 # ── Observability ────────────────────────────────────────
 structlog>=24.0.0
 
+# ── Cache & Rate Limiting ────────────────────────────────
+redis[hiredis]>=5.0.0
+filelock>=3.13.0
+
 # ── Utilities ────────────────────────────────────────────
 python-dotenv>=1.0.0
 numpy<2.0.0
@@ -44,4 +48,7 @@ requests>=2.31.0
 # ── Dev / Testing ────────────────────────────────────────
 faker>=25.0.0
 pytest>=8.0.0
+pytest-asyncio>=0.23.0
 httpx>=0.27.0
+locust>=2.20.0
+ruff>=0.6.0

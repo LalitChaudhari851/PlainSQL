@@ -1,5 +1,8 @@
 const API = {
   chat: "/chat",
+  stream: "/chat/stream",
+  feedback: "/api/v1/feedback",
+  conversations: "/api/v1/conversations",
   health: "/api/v1/health",
   schema: "/api/v1/schema"
 };
@@ -38,59 +41,104 @@ const state = {
   charts: new Map()
 };
 
+// ── Persistence ─────────────────────────────────────────
+function saveState() {
+  try {
+    const serializable = {
+      chats: state.chats.map(c => ({
+        ...c,
+        messages: c.messages.map(m => ({ ...m, streaming: false, pending: false }))
+      })),
+      activeChatId: state.activeChatId,
+      savedQueries: state.savedQueries,
+    };
+    localStorage.setItem("plainsql_state", JSON.stringify(serializable));
+  } catch {}
+}
+
+function loadState() {
+  // Load from localStorage as immediate fallback
+  try {
+    const saved = JSON.parse(localStorage.getItem("plainsql_state") || "null");
+    if (saved) {
+      state.chats = saved.chats || [];
+      state.activeChatId = saved.activeChatId;
+      if (Array.isArray(saved.savedQueries) && saved.savedQueries.length) {
+        state.savedQueries = saved.savedQueries;
+      }
+    }
+  } catch {}
+  // Then hydrate from server (non-blocking)
+  loadConversationsFromServer();
+}
+
+async function loadConversationsFromServer() {
+  try {
+    const res = await fetch(API.conversations);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.conversations && data.conversations.length) {
+      // Merge: keep local messages for active chats, add server-only chats
+      const localIds = new Set(state.chats.map(c => c.id));
+      for (const conv of data.conversations) {
+        if (!localIds.has(conv.id)) {
+          state.chats.push({
+            id: conv.id,
+            title: conv.title,
+            messages: [],
+            context: [],
+            _serverSynced: true,
+            _messageCount: conv.message_count,
+          });
+        }
+      }
+      if (!state.activeChatId && state.chats.length) {
+        state.activeChatId = state.chats[0].id;
+      }
+      render();
+    }
+  } catch {}
+}
+
 const Component = {
   Sidebar() {
     const activeChat = getActiveChat();
     const chats = state.chats.length ? state.chats : [{ id: "empty", title: "No conversations yet", messages: [] }];
-    const metrics = getWorkspaceMetrics();
     return `
       <div class="sidebar-head">
         <div class="brand">
           <div class="brand-mark">SQL</div>
-          <div class="brand-copy"><strong>PlainSQL</strong><span>AI data workspace</span></div>
+          <div class="brand-copy"><strong>PlainSQL</strong><span>Text-to-SQL workspace</span></div>
         </div>
-        <button class="new-chat" type="button" data-action="new-chat">New chat</button>
+        <button class="new-chat" type="button" data-action="new-chat">+ New chat</button>
       </div>
       <div class="sidebar-scroll">
         <div class="section">
-          <div class="section-title"><span>Database</span><span>${state.schemaTables.length} tables</span></div>
+          <div class="section-title"><span>Schema</span><span>${state.schemaTables.length} tables</span></div>
           <div class="schema-panel">
-            <label class="field-label" for="schemaSelect">Schema selector</label>
+            <label class="field-label" for="schemaSelect">Table context</label>
             <select class="select" id="schemaSelect" data-action="select-schema">
               ${state.schemaTables.map(name => `<option value="${escapeAttr(name)}" ${name === state.selectedSchema ? "selected" : ""}>${escapeHtml(name)}</option>`).join("")}
             </select>
             <div class="schema-meta">
-              <span>${state.selectedSchema === "default" ? "Using default context" : "Table context selected"}</span>
+              <span>${state.selectedSchema === "default" ? "All tables" : "Filtered"}</span>
               <span>Read-only</span>
             </div>
           </div>
         </div>
         <div class="section">
-          <div class="section-title"><span>Workspace</span><span>Live</span></div>
-          <div class="workspace-card">
-            <div class="metric-grid">
-              <div><strong>${metrics.questions}</strong><span>Questions</span></div>
-              <div><strong>${metrics.sqlBlocks}</strong><span>SQL blocks</span></div>
-              <div><strong>${metrics.resultRows}</strong><span>Rows seen</span></div>
-              <div><strong>${state.system.latency ?? "--"}</strong><span>API ms</span></div>
-            </div>
-            <div class="pipeline">
-              ${["Understand", "Generate", "Validate", "Visualize"].map((step, index) => `<span class="${index <= metrics.pipelineIndex ? "active" : ""}">${step}</span>`).join("")}
-            </div>
-          </div>
-        </div>
-        <div class="section">
-          <div class="section-title"><span>Chat history</span><span>${state.chats.length}</span></div>
+          <div class="section-title"><span>History</span><span>${state.chats.length}</span></div>
           <div class="history-list">
             ${chats.map(chat => `
               <button class="side-item ${activeChat && chat.id === activeChat.id ? "active" : ""}" type="button" data-chat-id="${escapeAttr(chat.id)}" ${chat.id === "empty" ? "disabled" : ""}>
                 <span>${escapeHtml(chat.title)}</span>${chat.messages.length ? `<small>${chat.messages.length}</small>` : ""}
+                ${chat.id !== "empty" ? `<span class="delete-chat" data-delete-chat="${escapeAttr(chat.id)}" title="Delete chat">✕</span>` : ""}
               </button>
             `).join("")}
           </div>
         </div>
         <div class="section">
-          <div class="section-title"><span>Saved queries</span><span>${state.savedQueries.length}</span></div>
+          <div class="section-title"><span>Saved</span><span>${state.savedQueries.length}</span></div>
           <div class="saved-list">
             ${state.savedQueries.map(query => `
               <button class="side-item" type="button" data-saved-query="${escapeAttr(query)}"><span>${escapeHtml(query)}</span></button>
@@ -110,22 +158,16 @@ const Component = {
 
   Welcome() {
     const prompts = [
-      ["Revenue pulse", "Total sales revenue by region"],
-      ["Customer concentration", "Which customers generated the most revenue?"],
-      ["Inventory watch", "Show products with low stock"],
-      ["Team insights", "Show top 5 employees by salary"]
+      ["Revenue analysis", "Total sales revenue by region"],
+      ["Top customers", "Which customers generated the most revenue?"],
+      ["Inventory check", "Show products with low stock"],
+      ["Team overview", "Show top 5 employees by salary"]
     ];
     return `
       <div class="welcome">
-        <div class="welcome-badge">Production text-to-SQL workspace</div>
-        <h2>Turn database questions into <span>reviewable decisions.</span></h2>
-        <p>Ask in plain English, inspect the SQL, scan the answer, and keep the next question moving.</p>
-        <div class="command-strip" aria-label="Workflow">
-          <span>Natural language</span>
-          <span>Safe SQL</span>
-          <span>Results</span>
-          <span>Insights</span>
-        </div>
+        <div class="welcome-badge">PlainSQL</div>
+        <h2>What do you want to <span>query?</span></h2>
+        <p>Ask in plain English. I'll generate safe SQL, execute it, and show you the results.</p>
         <div class="prompt-grid">
           ${prompts.map(([title, query]) => `
             <button class="prompt-card" type="button" data-saved-query="${escapeAttr(query)}">
@@ -146,13 +188,22 @@ const Component = {
         : Component.AssistantContent(message);
     return `
       <article class="message ${role}" data-message-id="${escapeAttr(message.id)}">
-        ${role === "user" ? `<div class="bubble">${body}</div><div class="avatar">YOU</div>` : `<div class="avatar ai">AI</div><div class="bubble">${body}</div>`}
+        ${role === "user" ? `<div class="bubble">${body}</div><div class="avatar">U</div>` : `<div class="avatar ai">AI</div><div class="bubble">${body}</div>`}
       </article>
     `;
   },
 
   LoadingState() {
-    return `<div class="loading-row" aria-label="Loading response"><div class="loading-copy">Coordinating schema context, SQL safety, and result rendering</div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>`;
+    const stages = [
+      "Understanding your question",
+      "Retrieving schema context",
+      "Generating SQL",
+      "Validating query safety",
+      "Executing query",
+      "Preparing results"
+    ];
+    const stageIndex = Math.min(Math.floor((Date.now() / 1800) % stages.length), stages.length - 1);
+    return `<div class="loading-row" aria-label="Loading response"><div class="loading-stage"><div class="spinner"></div><span>${stages[stageIndex]}...</span></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>`;
   },
 
   AssistantContent(message) {
@@ -169,6 +220,23 @@ const Component = {
       ${rows.length && hasChartSupport(rows) ? Component.ChartView(message.id) : ""}
       ${data.explanation || data.sql_explanation ? Component.ExplanationBlock(data.explanation || data.sql_explanation) : ""}
       ${Array.isArray(data.insights) && data.insights.length ? Component.InsightBlock(data.insights) : ""}
+      ${!message.streaming ? Component.MessageActions(message) : ""}
+    `;
+  },
+
+  MessageActions(message) {
+    const data = message.data || {};
+    const userQuery = message._userQuery || "";
+    return `
+      <div class="message-actions">
+        <button class="small-button" type="button" data-regenerate="${escapeAttr(message.id)}" title="Regenerate response">↻ Regenerate</button>
+        ${data.sql ? `<button class="small-button" type="button" data-copy-sql="${escapeAttr(message.id)}">Copy SQL</button>` : ""}
+        <button class="small-button" type="button" data-copy-response="${escapeAttr(message.id)}">Copy response</button>
+        <span class="feedback-group" data-feedback-for="${escapeAttr(message.id)}">
+          <button class="small-button feedback-btn ${message._feedback === 'up' ? 'active' : ''}" type="button" data-feedback="up" data-feedback-msg="${escapeAttr(message.id)}" title="Good response">👍</button>
+          <button class="small-button feedback-btn ${message._feedback === 'down' ? 'active' : ''}" type="button" data-feedback="down" data-feedback-msg="${escapeAttr(message.id)}" title="Bad response">👎</button>
+        </span>
+      </div>
     `;
   },
 
@@ -250,7 +318,7 @@ const Component = {
   },
 
   EmptyState() {
-    return `<div class="error-box empty-result">No rows matched this query.</div>`;
+    return `<div class="empty-result">No rows matched this query. Try broadening your filters.</div>`;
   },
 
   Suggestions(items) {
@@ -278,18 +346,33 @@ function ensureChat(seedTitle = "Untitled analysis") {
   chat = { id: createId("chat"), title: seedTitle, messages: [], context: [] };
   state.chats.unshift(chat);
   state.activeChatId = chat.id;
+  // Create on server (fire-and-forget)
+  createConversationOnServer(chat.id, seedTitle);
   return chat;
 }
 
 function newChat() {
-  const chat = { id: createId("chat"), title: "New analysis", messages: [], context: [] };
+  const chatId = createId("chat");
+  const chat = { id: chatId, title: "New analysis", messages: [], context: [] };
   state.chats.unshift(chat);
   state.activeChatId = chat.id;
   state.charts.forEach(chart => chart.destroy());
   state.charts.clear();
   dom.suggestions.innerHTML = "";
+  // Create on server (fire-and-forget)
+  createConversationOnServer(chatId, "New analysis");
   render();
   dom.input.focus();
+}
+
+async function createConversationOnServer(id, title) {
+  try {
+    await fetch(API.conversations, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title }),
+    });
+  } catch {}
 }
 
 async function submitPrompt(raw) {
@@ -297,7 +380,7 @@ async function submitPrompt(raw) {
   if (!question || state.isSending) return;
   const chat = ensureChat(titleFromPrompt(question));
   if (!chat.messages.length || chat.title === "New analysis" || chat.title === "Untitled analysis") chat.title = titleFromPrompt(question);
-  const pending = { id: createId("msg"), role: "assistant", pending: true, data: null };
+  const pending = { id: createId("msg"), role: "assistant", pending: true, data: null, _userQuery: question };
   chat.messages.push({ id: createId("msg"), role: "user", content: question }, pending);
   dom.input.value = "";
   autoSizeInput();
@@ -310,35 +393,110 @@ async function submitPrompt(raw) {
       question: state.selectedSchema === "default" ? question : `${question}\n\nUse table context: ${state.selectedSchema}`,
       history: chat.context.slice(-6)
     };
-    const response = await fetch(API.chat, {
+
+    // ── True SSE streaming via /chat/stream ──────────────
+    const response = await fetch(API.stream, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || data.error) throw new Error(data.error || `Request failed with ${response.status}`);
 
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      if (response.status === 401) throw new Error("Your session has expired. Please refresh the page.");
+      if (response.status === 429) throw new Error("You're sending requests too quickly. Please wait a moment.");
+      if (response.status === 400) throw new Error(errorData.error || "This query was blocked. Try rephrasing.");
+      throw new Error(errorData.error || `Server error (${response.status}). Please try again.`);
+    }
+
+    // ── Parse SSE chunks progressively ───────────────────
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    const assembled = { intent: "", sql: "", explanation: "", answer: [], message: "", insights: [], follow_ups: [], row_count: 0, execution_time_ms: 0, chart_config: null };
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const chunk = JSON.parse(line.slice(6));
+          switch (chunk.type) {
+            case "stage":
+              // Update loading stage text in real time
+              const loadingStage = document.querySelector(".loading-stage span");
+              if (loadingStage) loadingStage.textContent = chunk.message;
+              break;
+            case "intent":
+              assembled.intent = chunk.intent;
+              break;
+            case "sql":
+              assembled.sql = chunk.sql;
+              assembled.explanation = chunk.explanation || "";
+              // Show SQL as soon as it arrives
+              pending.pending = false;
+              pending.data = { ...assembled };
+              pending.streamText = "Generating results...";
+              pending.streaming = true;
+              render();
+              break;
+            case "results":
+              assembled.answer = chunk.data || [];
+              assembled.row_count = chunk.row_count || 0;
+              assembled.execution_time_ms = chunk.execution_time_ms || 0;
+              pending.data = { ...assembled };
+              render();
+              break;
+            case "message":
+              assembled.message = chunk.message || "";
+              assembled.insights = chunk.insights || [];
+              assembled.follow_ups = chunk.follow_ups || [];
+              pending.data = { ...assembled };
+              // Stream the message text token-by-token
+              pending.streamText = "";
+              pending.streaming = true;
+              render();
+              await streamResponse(pending, assembled.message || "Done.");
+              pending.streaming = false;
+              render();
+              break;
+            case "done":
+              assembled.execution_time_ms = assembled.execution_time_ms || chunk.total_time_ms || 0;
+              break;
+          }
+        } catch {}
+      }
+    }
+
+    // Finalize
     pending.pending = false;
-    pending.data = data;
-    pending.streamText = "";
-    pending.streaming = true;
-    render();
-    await streamResponse(pending, data.message || "Done. I generated a read-only SQL query and prepared the result view.");
     pending.streaming = false;
-    if (data.sql && !String(data.sql).toLowerCase().includes("error")) {
-      chat.context.push({ user: question, sql: data.sql });
+    pending.data = assembled;
+    if (!pending.streamText) pending.streamText = assembled.message || "Done.";
+    if (assembled.sql && !String(assembled.sql).toLowerCase().includes("error")) {
+      chat.context.push({ user: question, sql: assembled.sql });
       chat.context = chat.context.slice(-8);
     }
-    dom.suggestions.innerHTML = Component.Suggestions(Array.isArray(data.follow_ups) ? data.follow_ups.slice(0, 5) : []);
+    dom.suggestions.innerHTML = Component.Suggestions(Array.isArray(assembled.follow_ups) ? assembled.follow_ups.slice(0, 5) : []);
     toast("Query complete", "success");
   } catch (error) {
     pending.pending = false;
-    pending.error = `${error.message}. Make sure the FastAPI backend is running and reachable.`;
+    const msg = error.message === "Failed to fetch"
+      ? "Unable to connect to the server. Check if it's running and try again."
+      : error.message;
+    pending.error = msg;
     render();
     toast("Query failed", "error");
   } finally {
     setSending(false);
     render();
+    saveState();
   }
 }
 
@@ -387,9 +545,9 @@ function buildChartConfig(rows, type) {
       datasets: [{
         label: readableLabel(numericCol),
         data: rows.slice(0, 24).map(row => toNumber(row[numericCol])),
-        borderColor: "#2fd6c2",
-        backgroundColor: type === "line" ? "rgba(47,214,194,0.14)" : "rgba(47,214,194,0.68)",
-        pointBackgroundColor: "#f0c85a",
+        borderColor: "#6366f1",
+        backgroundColor: type === "line" ? "rgba(99,102,241,0.14)" : "rgba(99,102,241,0.55)",
+        pointBackgroundColor: "#818cf8",
         pointRadius: type === "line" ? 3 : 0,
         borderWidth: 2,
         borderRadius: type === "bar" ? 6 : 0,
@@ -401,12 +559,12 @@ function buildChartConfig(rows, type) {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { labels: { color: "#b9c1bd", font: { family: "Inter" } } },
-        tooltip: { backgroundColor: "#111715", borderColor: "rgba(238,243,239,0.2)", borderWidth: 1 }
+        legend: { labels: { color: "#a1a1a1", font: { family: "Inter" } } },
+        tooltip: { backgroundColor: "#171717", borderColor: "rgba(255,255,255,0.12)", borderWidth: 1 }
       },
       scales: {
-        x: { ticks: { color: "#7f8a85" }, grid: { color: "rgba(238,243,239,0.06)" } },
-        y: { ticks: { color: "#7f8a85" }, grid: { color: "rgba(238,243,239,0.08)" } }
+        x: { ticks: { color: "#737373" }, grid: { color: "rgba(255,255,255,0.05)" } },
+        y: { ticks: { color: "#737373" }, grid: { color: "rgba(255,255,255,0.06)" } }
       }
     }
   };
@@ -460,9 +618,21 @@ function handleClick(event) {
   const exportCsv = event.target.closest("[data-export-csv]");
   const copyResult = event.target.closest("[data-copy-result]");
   const chartType = event.target.closest("[data-chart-type]");
+  const deleteChat = event.target.closest("[data-delete-chat]");
+  const regenerate = event.target.closest("[data-regenerate]");
+  const copyResponse = event.target.closest("[data-copy-response]");
   if (openSidebar) document.body.classList.add("sidebar-open");
   if (closeSidebar) document.body.classList.remove("sidebar-open");
   if (newChatButton) newChat();
+  if (deleteChat) {
+    event.stopPropagation();
+    const chatId = deleteChat.dataset.deleteChat;
+    state.chats = state.chats.filter(c => c.id !== chatId);
+    if (state.activeChatId === chatId) state.activeChatId = state.chats[0]?.id || null;
+    saveState();
+    render();
+    return;
+  }
   if (historyButton && historyButton.dataset.chatId !== "empty") {
     state.activeChatId = historyButton.dataset.chatId;
     document.body.classList.remove("sidebar-open");
@@ -477,15 +647,73 @@ function handleClick(event) {
     const sql = findMessage(saveSql.dataset.saveSql)?.data?.sql || "";
     if (sql && !state.savedQueries.includes(sql)) state.savedQueries.unshift(sql);
     toast("Saved query added", "success");
+    saveState();
     render();
   }
   if (exportCsv) downloadCSV(normalizeRows(findMessage(exportCsv.dataset.exportCsv)?.data || {}));
   if (copyResult) writeClipboard(JSON.stringify(normalizeRows(findMessage(copyResult.dataset.copyResult)?.data || {}), null, 2), "Result JSON copied");
-  if (chartType) {
+  if (regenerate) {
+    const msg = findMessage(regenerate.dataset.regenerate);
+    if (msg) {
+      // Find the user message before this assistant message
+      const chat = getActiveChat();
+      if (chat) {
+        const idx = chat.messages.findIndex(m => m.id === msg.id);
+        if (idx > 0) {
+          const userMsg = chat.messages[idx - 1];
+          if (userMsg?.role === "user") {
+            // Remove old assistant message and re-submit
+            chat.messages.splice(idx, 1);
+            render();
+            submitPrompt(userMsg.content);
+          }
+        }
+      }
+    }
+  }
+  if (copyResponse) {
+    const msg = findMessage(copyResponse.dataset.copyResponse);
+    if (msg) {
+      const data = msg.data || {};
+      const parts = [msg.streamText || data.message || "", data.sql ? `\nSQL:\n${data.sql}` : "", data.explanation || data.sql_explanation ? `\nExplanation: ${data.explanation || data.sql_explanation}` : ""].filter(Boolean).join("\n");
+      writeClipboard(parts, "Response copied");
+    }
+  }
+   if (chartType) {
     const id = chartType.dataset.chartType;
     const canvas = document.getElementById(`chart-${id}`);
     if (canvas) canvas.dataset.type = chartType.dataset.type;
     hydrateCharts({ [id]: chartType.dataset.type });
+  }
+  // Feedback buttons (thumbs up/down)
+  const feedbackBtn = event.target.closest("[data-feedback-msg]");
+  if (feedbackBtn) {
+    const msgId = feedbackBtn.dataset.feedbackMsg;
+    const rating = feedbackBtn.dataset.feedback;
+    sendFeedback(msgId, rating);
+  }
+}
+
+async function sendFeedback(messageId, rating) {
+  const msg = findMessage(messageId);
+  if (!msg) return;
+  msg._feedback = rating;
+  render();
+  try {
+    await fetch(API.feedback, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message_id: messageId,
+        user_query: msg._userQuery || "",
+        generated_sql: msg.data?.sql || "",
+        rating,
+      })
+    });
+    toast(`Feedback recorded: ${rating === "up" ? "👍" : "👎"}`, "success");
+    saveState();
+  } catch {
+    toast("Failed to send feedback", "error");
   }
 }
 
@@ -509,14 +737,33 @@ function handleInputKeydown(event) {
   }
 }
 
+let _rafId;
 function autoSizeInput() {
-  dom.input.style.height = "auto";
-  dom.input.style.height = `${Math.min(dom.input.scrollHeight, 150)}px`;
+  cancelAnimationFrame(_rafId);
+  _rafId = requestAnimationFrame(() => {
+    dom.input.style.height = "auto";
+    dom.input.style.height = `${Math.min(dom.input.scrollHeight, 150)}px`;
+  });
 }
 
 function setSending(value) {
   state.isSending = value;
   dom.send.disabled = value;
+  // Animate loading stage rotation while waiting
+  if (value) {
+    state._loadingInterval = setInterval(() => {
+      const loadingStage = document.querySelector(".loading-stage span");
+      if (loadingStage) {
+        const stages = ["Understanding your question", "Retrieving schema context", "Generating SQL", "Validating query safety", "Executing query", "Preparing results"];
+        const current = stages.findIndex(s => loadingStage.textContent.startsWith(s));
+        const next = (current + 1) % stages.length;
+        loadingStage.textContent = stages[next] + "...";
+      }
+    }, 1800);
+  } else if (state._loadingInterval) {
+    clearInterval(state._loadingInterval);
+    state._loadingInterval = null;
+  }
 }
 
 function getWorkspaceMetrics() {
@@ -690,10 +937,18 @@ function wait(ms) {
 
 document.addEventListener("click", handleClick);
 document.addEventListener("change", handleChange);
+document.addEventListener("keydown", function(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+    e.preventDefault();
+    newChat();
+    dom.input.focus();
+  }
+});
 dom.form.addEventListener("submit", handleSubmit);
 dom.input.addEventListener("keydown", handleInputKeydown);
 dom.input.addEventListener("input", autoSizeInput);
 
+loadState();
 render();
 loadHealth();
 loadSchema();

@@ -192,13 +192,17 @@ class ModelRouter:
         messages: list[dict],
         model_preference: str = "default",
         max_retries: int = 2,
+        timeout: float = 15.0,
         **kwargs,
     ) -> str:
         """
         Route a generation request to the best available provider.
         Falls back through providers if the primary one fails.
-        Applies circuit breaker and retry logic per provider.
+        Applies circuit breaker, retry logic, and a total timeout per request.
         """
+        # Total deadline prevents thread pool exhaustion under LLM degradation
+        deadline = time.monotonic() + timeout
+
         # Determine target provider
         target = self.routing.get(model_preference, self.default_provider)
 
@@ -217,6 +221,11 @@ class ModelRouter:
             breaker = self.breakers.get(provider_name)
             if not provider:
                 continue
+
+            # Abort if total deadline exceeded
+            if time.monotonic() > deadline:
+                logger.warning("llm_request_timeout", elapsed_providers=len(fallback_chain))
+                break
 
             # Circuit breaker check
             if breaker and not breaker.is_available():
@@ -261,8 +270,13 @@ class ModelRouter:
                             breaker.record_failure()
                         break
 
-                    # Exponential backoff between retries (0.5s, 1s)
+                    # Exponential backoff — but respect the deadline
                     backoff = 0.5 * attempt
+                    if time.monotonic() + backoff > deadline:
+                        logger.warning("llm_backoff_skipped_deadline", provider=provider_name)
+                        if breaker:
+                            breaker.record_failure()
+                        break
                     time.sleep(backoff)
 
         raise RuntimeError(f"All LLM providers failed. Last error: {last_error}")

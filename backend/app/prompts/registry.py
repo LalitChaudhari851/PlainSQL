@@ -149,7 +149,78 @@ RULES:
             user="{user_query}",
         ))
 
-        # ── SQL Explanation ──────────────────────────────
+        # ── SQL Generation v2 (Few-Shot + Chain-of-Thought) ───
+        self.register(PromptTemplate(
+            name="sql_generation",
+            version="v2",
+            description="SQL generation with few-shot examples and chain-of-thought reasoning",
+            system="""You are an elite SQL expert for MySQL databases.
+
+DATABASE SCHEMA:
+{schema_context}
+
+{history_context}
+
+{retry_context}
+
+FEW-SHOT EXAMPLES:
+
+Example 1:
+Question: "Show top 5 employees by salary"
+Thinking: Single table query on employees, ORDER BY salary DESC, LIMIT 5.
+SQL: SELECT name, salary FROM employees ORDER BY salary DESC LIMIT 5
+
+Example 2:
+Question: "Total sales revenue by region"
+Thinking: Need to join sales with customers (for region). Aggregate SUM on sales.total_amount, GROUP BY customer.region.
+SQL: SELECT c.region, SUM(s.total_amount) AS revenue FROM sales s JOIN customers c ON s.customer_id = c.id GROUP BY c.region ORDER BY revenue DESC
+
+Example 3:
+Question: "Which department has the highest average salary?"
+Thinking: Join employees with departments. AVG(salary) grouped by department name. ORDER DESC, LIMIT 1 for highest.
+SQL: SELECT d.name AS department, AVG(e.salary) AS avg_salary FROM employees e JOIN departments d ON e.department_id = d.id GROUP BY d.name ORDER BY avg_salary DESC LIMIT 1
+
+INSTRUCTIONS:
+1. First, reason step-by-step about which tables and joins are needed (chain-of-thought).
+2. Then generate the SQL query.
+3. Output ONLY valid JSON: {{ "sql": "SELECT ...", "message": "friendly explanation", "explanation": "step-by-step reasoning" }}
+4. Query MUST be Read-Only (SELECT or WITH...SELECT only).
+5. Always use exact table and column names from the schema.
+6. Use proper JOINs when querying across tables.
+7. Include LIMIT 100 unless the user asks for all data.
+8. Do NOT wrap output in markdown code blocks.
+9. For aggregation queries, always include meaningful column aliases.
+10. Handle NULL values appropriately.""",
+            user="{user_query}",
+        ), set_active=False)  # v1 remains default; v2 available for A/B testing
+
+        # ── Query Classification v2 (Enhanced) ─────────
+        self.register(PromptTemplate(
+            name="query_classification",
+            version="v2",
+            description="Enhanced intent classification with better examples and meta_query support",
+            system="You are a query classifier. Respond ONLY with valid JSON.",
+            user="""Classify this user message and extract any table or column names mentioned.
+
+User Query: "{user_query}"
+
+Examples:
+- "Hello, what can you do?" → {{ "intent": "chat", "route_intent": "data_query", "entities": [], "complexity": "simple" }}
+- "Show top 5 employees by salary" → {{ "intent": "sql", "route_intent": "data_query", "entities": ["employees", "salary"], "complexity": "simple" }}
+- "Total revenue by region" → {{ "intent": "sql", "route_intent": "aggregation", "entities": ["sales", "region"], "complexity": "moderate" }}
+- "Compare Q1 vs Q2 sales" → {{ "intent": "sql", "route_intent": "comparison", "entities": ["sales"], "complexity": "complex" }}
+- "What tables do you have?" → {{ "intent": "sql", "route_intent": "meta_query", "entities": [], "complexity": "simple" }}
+
+Respond ONLY with valid JSON:
+{{
+  "intent": "chat|sql",
+  "route_intent": "data_query|aggregation|comparison|explanation|meta_query",
+  "entities": ["table_or_column_names_found"],
+  "complexity": "simple|moderate|complex"
+}}""",
+        ), set_active=False)  # v1 remains default; v2 available for A/B testing
+
+        # ── SQL Explanation ───────────────────────────
         self.register(PromptTemplate(
             name="sql_explanation",
             version="v1",

@@ -54,6 +54,16 @@ def query_understanding_node(state: AgentState, llm_router) -> dict:
             "friendly_message": build_chat_response(user_query),
         }
 
+    if classification.intent == "ambiguous":
+        logger.info("intent_classified", intent="ambiguous", method=classification.reason)
+        return {
+            "intent": "ambiguous",
+            "route_intent": "chat",
+            "entities": _extract_entities_basic(user_query),
+            "complexity": "simple",
+            "friendly_message": _build_ambiguous_response(user_query),
+        }
+
     if classification.route_intent == "meta_query":
         logger.info("intent_classified", intent="sql", route_intent="meta_query", method=classification.reason)
         return {
@@ -77,16 +87,9 @@ def query_understanding_node(state: AgentState, llm_router) -> dict:
         entities = parsed.get("entities", [])
         complexity = parsed.get("complexity", classification.complexity)
 
-        if intent in {"chat", "conversational"}:
-            logger.info("intent_refined_to_chat", method="llm")
-            return {
-                "intent": "chat",
-                "route_intent": "chat",
-                "entities": [],
-                "complexity": "simple",
-                "friendly_message": build_chat_response(user_query),
-            }
-
+        # The rule-based classifier already decided this is SQL.
+        # The LLM refinement should NOT override that decision back to chat —
+        # doing so would allow prompt injection to bypass the SQL pipeline.
         valid_intents = {"data_query", "aggregation", "comparison", "explanation"}
         if intent not in valid_intents:
             intent = classification.route_intent if classification.route_intent in valid_intents else "data_query"
@@ -129,3 +132,28 @@ def _extract_entities_basic(query: str) -> list[str]:
     ]
     query_lower = query.lower()
     return [t for t in common_tables if t in query_lower]
+
+
+def _build_ambiguous_response(user_query: str) -> str:
+    """Return a helpful response for queries that are too vague to generate SQL."""
+    entities = _extract_entities_basic(user_query)
+
+    if entities:
+        table_name = entities[0]
+        return (
+            f"I found a reference to **{table_name}**, but your question is a bit vague. "
+            f"Could you be more specific? For example:\n\n"
+            f"• \"Show all {table_name}\"\n"
+            f"• \"How many {table_name} are there?\"\n"
+            f"• \"Show top 5 {table_name} by name\""
+        )
+
+    return (
+        "I'm not sure what data you're looking for. I can query these tables: "
+        "**employees**, **departments**, **products**, **customers**, **sales**.\n\n"
+        "Try asking something specific like:\n"
+        "• \"Show top 5 employees by salary\"\n"
+        "• \"Total sales revenue by region\"\n"
+        "• \"List products with low stock\"\n"
+        "• \"Which department has the highest average salary?\""
+    )

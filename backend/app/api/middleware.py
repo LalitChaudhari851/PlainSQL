@@ -27,6 +27,7 @@ class InMemoryRateLimiter:
     def __init__(self, requests_per_minute: int = 60):
         self.rpm = requests_per_minute
         self._counters: dict[str, list[float]] = {}
+        self._call_count = 0
 
     def check(self, key: str) -> bool:
         """Returns True if request is allowed, False if rate limited."""
@@ -36,8 +37,15 @@ class InMemoryRateLimiter:
         if key not in self._counters:
             self._counters[key] = []
 
-        # Clean old entries
+        # Clean old entries for this key
         self._counters[key] = [t for t in self._counters[key] if t > window_start]
+
+        # Periodic cleanup of dead keys to prevent unbounded memory growth
+        self._call_count += 1
+        if self._call_count % 500 == 0:
+            dead_keys = [k for k, v in self._counters.items() if not v]
+            for k in dead_keys:
+                del self._counters[k]
 
         if len(self._counters[key]) >= self.rpm:
             return False
@@ -78,15 +86,23 @@ class QueryCache:
         if len(self._cache) >= self.max_entries:
             oldest_key = min(self._cache, key=lambda k: self._cache[k]["timestamp"])
             del self._cache[oldest_key]
-        self._cache[key] = {"data": data, "timestamp": time.time()}
+        self._cache[key] = {"data": data, "timestamp": time.time(), "tenant_id": tenant_id}
 
     def invalidate(self, tenant_id: str = "default"):
-        """Clear all cache entries for a tenant."""
+        """Clear all cache entries for a specific tenant.
+        Cache keys are SHA-256 hashes of '{tenant_id}:{query}', so we must
+        recheck by storing the tenant_id alongside the cached data.
+        """
         keys_to_delete = [
             k for k, v in self._cache.items()
+            if v.get("tenant_id", "default") == tenant_id
         ]
         for k in keys_to_delete:
             del self._cache[k]
+
+    def invalidate_all(self):
+        """Clear the entire cache (all tenants)."""
+        self._cache.clear()
 
 
 # ── Auth Dependency ──────────────────────────────────────

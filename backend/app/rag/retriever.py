@@ -64,8 +64,25 @@ class HybridRetriever:
         self.doc_ids: list[str] = []
         self.bm25: Optional[BM25Okapi] = None
 
-        # Index on startup
-        self._index_schema()
+        # Index on startup — file-locked to prevent SQLite race when
+        # multiple Gunicorn workers start simultaneously.
+        self._index_schema_safe(chroma_persist_dir)
+
+    def _index_schema_safe(self, chroma_persist_dir: str):
+        """Index schema with a file lock to prevent concurrent writes."""
+        lock_path = os.path.join(chroma_persist_dir, ".index_lock")
+        try:
+            import filelock
+            lock = filelock.FileLock(lock_path, timeout=30)
+            with lock:
+                self._index_schema()
+        except ImportError:
+            # filelock not installed — proceed without locking (single-worker is fine)
+            logger.warning("filelock_not_installed", hint="pip install filelock for multi-worker safety")
+            self._index_schema()
+        except filelock.Timeout:
+            logger.error("index_lock_timeout", lock_path=lock_path)
+            self._index_schema()  # Proceed anyway
 
     def _index_schema(self):
         """Index all tables into both ChromaDB and BM25."""
