@@ -8,7 +8,7 @@ FROM python:3.11-slim AS deps
 WORKDIR /app
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir gunicorn
+    pip install --no-cache-dir gunicorn alembic
 
 # Stage 2: Production Runtime
 FROM python:3.11-slim AS runtime
@@ -28,11 +28,19 @@ COPY --from=deps /usr/local/bin /usr/local/bin
 COPY backend/ .
 COPY frontend/ /frontend/
 
+# Copy Alembic migration files
+COPY backend/alembic.ini /app/alembic.ini
+COPY backend/alembic/ /app/alembic/
+
+# Copy entrypoint
+COPY docker/entrypoint.sh /app/entrypoint.sh
+
 # Create non-root user
 RUN useradd -m -r -s /bin/false plainsql && \
     chown -R plainsql:plainsql /app && \
     mkdir -p /app/chroma_db && \
-    chown -R plainsql:plainsql /app/chroma_db
+    chown -R plainsql:plainsql /app/chroma_db && \
+    chmod +x /app/entrypoint.sh
 
 USER plainsql
 
@@ -42,16 +50,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
 
 EXPOSE 8000
 
-# Production: Gunicorn with Uvicorn workers for multi-process concurrency
-# - workers: 2-4x CPU cores (default 4 here, override via env)
-# - timeout: generous for LLM calls
-# - graceful-timeout: allow in-flight requests to complete
-CMD ["gunicorn", "app.main:app", \
-     "--worker-class", "uvicorn.workers.UvicornWorker", \
-     "--workers", "4", \
-     "--bind", "0.0.0.0:8000", \
-     "--timeout", "120", \
-     "--graceful-timeout", "30", \
-     "--keep-alive", "5", \
-     "--access-logfile", "-", \
-     "--error-logfile", "-"]
+# Production: Entrypoint runs migrations, then starts Gunicorn
+ENTRYPOINT ["/app/entrypoint.sh"]

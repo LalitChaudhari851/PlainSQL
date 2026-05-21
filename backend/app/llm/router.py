@@ -15,6 +15,7 @@ from app.llm.providers import (
     OpenAIProvider,
     AnthropicProvider,
     OllamaProvider,
+    GroqProvider,
 )
 
 logger = structlog.get_logger()
@@ -78,6 +79,87 @@ class CircuitBreaker:
         return self.state != self.OPEN
 
 
+class TokenTracker:
+    """
+    Tracks token usage per LLM request for cost estimation and observability.
+
+    Uses tiktoken for accurate counting when available, falls back to
+    character-based heuristic (~4 chars per token). Thread-safe.
+    """
+
+    def __init__(self):
+        self._encoder = None
+        self._total_input = 0
+        self._total_output = 0
+        self._total_cost_usd = 0.0
+        self._request_count = 0
+        self._lock = threading.Lock()
+
+        try:
+            import tiktoken
+            self._encoder = tiktoken.get_encoding("cl100k_base")
+            logger.info("token_tracker_initialized", encoder="tiktoken_cl100k")
+        except ImportError:
+            logger.info("token_tracker_initialized", encoder="char_heuristic",
+                        hint="pip install tiktoken for accurate token counts")
+
+    # Pricing per token (approximate, GPT-4o-mini rates as baseline)
+    _PRICING = {
+        "input_per_token": 0.00000015,   # $0.15 / 1M input tokens
+        "output_per_token": 0.0000006,   # $0.60 / 1M output tokens
+    }
+
+    def count_tokens(self, text: str) -> int:
+        """Count tokens in a text string."""
+        if self._encoder:
+            return len(self._encoder.encode(text))
+        return max(1, len(text) // 4)  # ~4 chars per token heuristic
+
+    def track(self, messages: list[dict], response: str, provider: str = "unknown") -> dict:
+        """
+        Track token usage for a single request/response pair.
+
+        Returns a dict with token counts and estimated cost.
+        """
+        input_text = " ".join(m.get("content", "") for m in messages)
+        input_tokens = self.count_tokens(input_text)
+        output_tokens = self.count_tokens(response)
+        total = input_tokens + output_tokens
+
+        cost = (
+            input_tokens * self._PRICING["input_per_token"]
+            + output_tokens * self._PRICING["output_per_token"]
+        )
+
+        with self._lock:
+            self._total_input += input_tokens
+            self._total_output += output_tokens
+            self._total_cost_usd += cost
+            self._request_count += 1
+
+        return {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": total,
+            "estimated_cost_usd": round(cost, 6),
+            "provider": provider,
+        }
+
+    def get_totals(self) -> dict:
+        """Get aggregate token usage stats."""
+        with self._lock:
+            return {
+                "total_input_tokens": self._total_input,
+                "total_output_tokens": self._total_output,
+                "total_tokens": self._total_input + self._total_output,
+                "total_cost_usd": round(self._total_cost_usd, 4),
+                "total_requests": self._request_count,
+                "avg_tokens_per_request": round(
+                    (self._total_input + self._total_output) / max(self._request_count, 1), 1
+                ),
+            }
+
+
 class ModelRouter:
     """
     Intelligent model router with fallback chains and circuit breakers.
@@ -103,20 +185,30 @@ class ModelRouter:
         """
         self.providers: dict[str, BaseLLMProvider] = {}
         self.breakers: dict[str, CircuitBreaker] = {}
-        self.default_provider = config.get("default_provider", "huggingface")
+        self.default_provider = config.get("default_provider", "groq")
+        self.token_tracker = TokenTracker()
         self._init_providers(config)
 
-        # Routing preferences
+        # Auto-detect default if configured provider isn't available
+        if self.default_provider not in self.providers and self.providers:
+            self.default_provider = next(iter(self.providers))
+            logger.warning("default_provider_unavailable", fallback=self.default_provider)
+
+        # Routing preferences — Groq excels at both speed and accuracy
         self.routing = {
             "fast": self.default_provider,       # Fast model for classification
             "accurate": self.default_provider,    # Best model for SQL generation
             "default": self.default_provider,     # Default
         }
 
-        # Configure routing based on available providers
-        if "openai" in self.providers:
+        # Groq has a dedicated fast model (8B) for lightweight tasks
+        if "groq" in self.providers:
+            self.routing["fast"] = "groq"       # Uses fast_model via model_override
+            self.routing["accurate"] = "groq"   # Uses primary model (70B)
+            self.routing["default"] = "groq"
+        if "openai" in self.providers and "groq" not in self.providers:
             self.routing["accurate"] = "openai"
-        if "anthropic" in self.providers:
+        if "anthropic" in self.providers and "groq" not in self.providers:
             self.routing["accurate"] = "anthropic"
 
         logger.info(
@@ -128,7 +220,23 @@ class ModelRouter:
 
     def _init_providers(self, config: dict):
         """Initialize available providers based on config."""
-        # HuggingFace (primary)
+        # Groq (primary — ultra-low-latency LPU inference)
+        groq_key = config.get("groq_api_key")
+        if groq_key:
+            try:
+                self.providers["groq"] = GroqProvider(
+                    api_key=groq_key,
+                    model=config.get("groq_model_primary", "llama-3.3-70b-versatile"),
+                    fast_model=config.get("groq_model_fast", "llama-3.1-8b-instant"),
+                    base_url=config.get("groq_base_url", "https://api.groq.com/openai/v1"),
+                )
+                self.breakers["groq"] = CircuitBreaker()
+                logger.info("provider_initialized", provider="groq",
+                            model=config.get("groq_model_primary", "llama-3.3-70b-versatile"))
+            except Exception as e:
+                logger.warning("provider_init_failed", provider="groq", error=str(e))
+
+        # HuggingFace (fallback)
         hf_token = config.get("huggingface_token")
         if hf_token:
             try:
@@ -141,7 +249,7 @@ class ModelRouter:
             except Exception as e:
                 logger.warning("provider_init_failed", provider="huggingface", error=str(e))
 
-        # OpenAI
+        # OpenAI (fallback)
         openai_key = config.get("openai_api_key")
         if openai_key:
             try:
@@ -154,7 +262,7 @@ class ModelRouter:
             except Exception as e:
                 logger.warning("provider_init_failed", provider="openai", error=str(e))
 
-        # Anthropic
+        # Anthropic (fallback)
         anthropic_key = config.get("anthropic_api_key")
         if anthropic_key:
             try:
@@ -167,7 +275,7 @@ class ModelRouter:
             except Exception as e:
                 logger.warning("provider_init_failed", provider="anthropic", error=str(e))
 
-        # Ollama (local)
+        # Ollama (local fallback)
         ollama_url = config.get("ollama_base_url")
         if ollama_url:
             try:
@@ -185,7 +293,10 @@ class ModelRouter:
                 logger.warning("provider_init_failed", provider="ollama", error=str(e))
 
         if not self.providers:
-            raise RuntimeError("No LLM providers configured. Set at least HUGGINGFACEHUB_API_TOKEN in .env")
+            raise RuntimeError(
+                "No LLM providers configured. Set at least one of: "
+                "GROQ_API_KEY, HUGGINGFACEHUB_API_TOKEN, OPENAI_API_KEY in .env"
+            )
 
     def generate(
         self,
@@ -246,11 +357,17 @@ class ModelRouter:
                     if provider_name != target:
                         logger.info("fallback_used", target=target, actual=provider_name)
 
+                    # Track token usage
+                    token_info = self.token_tracker.track(messages, response, provider=provider_name)
+
                     logger.info(
                         "llm_call_success",
                         provider=provider_name,
                         elapsed_ms=elapsed_ms,
                         attempt=attempt,
+                        input_tokens=token_info["input_tokens"],
+                        output_tokens=token_info["output_tokens"],
+                        cost_usd=token_info["estimated_cost_usd"],
                     )
                     return response
 
@@ -295,3 +412,122 @@ class ModelRouter:
     def list_providers(self) -> list[str]:
         """List all available provider names."""
         return list(self.providers.keys())
+
+    def get_token_usage(self) -> dict:
+        """Get aggregate token usage and cost stats."""
+        return self.token_tracker.get_totals()
+
+    async def agenerate(
+        self,
+        messages: list[dict],
+        model_preference: str = "default",
+        **kwargs,
+    ) -> str:
+        """
+        Async version of generate().
+
+        If the target provider supports native async (e.g. Groq), uses it directly
+        for zero thread-pool overhead. Otherwise falls back to asyncio.to_thread().
+        """
+        import asyncio
+
+        # Resolve target provider
+        target = self.routing.get(model_preference, self.default_provider)
+        provider = self.providers.get(target)
+        breaker = self.breakers.get(target)
+
+        # Try native async on Groq first
+        if provider and hasattr(provider, 'agenerate') and (not breaker or breaker.is_available()):
+            try:
+                import time
+                start = time.perf_counter()
+
+                # For 'fast' routing, use the fast model
+                if model_preference == "fast" and hasattr(provider, 'fast_model'):
+                    kwargs["model_override"] = provider.fast_model
+
+                response = await provider.agenerate(messages, **kwargs)
+                elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
+
+                if breaker:
+                    breaker.record_success()
+
+                # Track tokens
+                token_info = self.token_tracker.track(messages, response, provider=target)
+                logger.info(
+                    "async_llm_call_success",
+                    provider=target,
+                    elapsed_ms=elapsed_ms,
+                    input_tokens=token_info["input_tokens"],
+                    output_tokens=token_info["output_tokens"],
+                    native_async=True,
+                )
+                return response
+
+            except Exception as e:
+                logger.warning("async_native_failed", provider=target, error=str(e))
+                if breaker:
+                    breaker.record_failure()
+                # Fall through to thread-wrapped sync
+
+        # Fallback: thread-wrapped sync generate() with full fallback chain
+        return await asyncio.to_thread(
+            self.generate,
+            messages=messages,
+            model_preference=model_preference,
+            **kwargs,
+        )
+
+    async def astream_tokens(
+        self,
+        messages: list[dict],
+        model: str = None,
+        **kwargs,
+    ):
+        """
+        Async generator that yields tokens as they stream from the LLM.
+
+        Priority order:
+        1. Groq native streaming (fastest — LPU hardware)
+        2. OpenAI native streaming
+        3. Fallback: generate full response + yield in word chunks
+        """
+        # 1. Try Groq native streaming first
+        if "groq" in self.providers:
+            try:
+                provider = self.providers["groq"]
+                async for token in provider.astream(messages, **kwargs):
+                    yield token
+                return
+            except Exception as e:
+                logger.warning("groq_streaming_failed", error=str(e))
+
+        # 2. Try OpenAI native streaming
+        if "openai" in self.providers:
+            try:
+                from openai import AsyncOpenAI
+                provider = self.providers["openai"]
+                api_key = getattr(provider, "api_key", None)
+                if api_key:
+                    client = AsyncOpenAI(api_key=api_key)
+                    stream = await client.chat.completions.create(
+                        model=model or "gpt-4o-mini",
+                        messages=messages,
+                        stream=True,
+                        **kwargs,
+                    )
+                    async for chunk in stream:
+                        if chunk.choices[0].delta.content:
+                            yield chunk.choices[0].delta.content
+                    return
+            except ImportError:
+                logger.debug("openai_async_not_available", hint="pip install openai>=1.0")
+            except Exception as e:
+                logger.warning("openai_streaming_failed", error=str(e))
+
+        # 3. Fallback: generate full response, yield in word chunks
+        import asyncio
+        response = await self.agenerate(messages, **kwargs)
+        for word in response.split(" "):
+            yield word + " "
+            await asyncio.sleep(0.01)  # Small delay for streaming UX

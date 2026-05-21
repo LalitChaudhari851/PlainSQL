@@ -40,6 +40,7 @@ class HybridRetriever:
     1. ChromaDB vector similarity (semantic search)
     2. BM25 keyword matching (exact table/column name matching)
     3. Reciprocal Rank Fusion to merge results
+    4. Optional cross-encoder reranking for precision
     """
 
     def __init__(self, db_pool, chroma_persist_dir: str = "./chroma_db"):
@@ -63,6 +64,10 @@ class HybridRetriever:
         self.documents: list[str] = []
         self.doc_ids: list[str] = []
         self.bm25: Optional[BM25Okapi] = None
+
+        # Optional cross-encoder reranker — lazy-loaded on first use
+        self._reranker = None
+        self._reranker_loaded = False
 
         # Index on startup — file-locked to prevent SQLite race when
         # multiple Gunicorn workers start simultaneously.
@@ -134,7 +139,8 @@ class HybridRetriever:
     def retrieve(self, query: str, top_k: int = 5) -> list[str]:
         """
         Retrieve relevant schema documents using hybrid search.
-        Combines ChromaDB vector search with BM25 keyword search.
+        Combines ChromaDB vector search with BM25 keyword search,
+        then optionally reranks with a cross-encoder for precision.
         """
         if not self.documents:
             logger.warning("empty_index_fallback")
@@ -148,19 +154,104 @@ class HybridRetriever:
             bm25_docs = self._keyword_search(query, top_k)
 
             # ── Reciprocal Rank Fusion ───────────────────
-            merged = self._rrf_merge(vector_docs, bm25_docs, top_k)
+            # Fetch more candidates than needed for reranking
+            merge_k = top_k * 2 if self._get_reranker() else top_k
+            merged = self._rrf_merge(vector_docs, bm25_docs, merge_k)
 
             if not merged:
                 # Fallback: return all documents
                 return self.documents
 
-            logger.info("retrieval_complete", vector_count=len(vector_docs), bm25_count=len(bm25_docs), merged_count=len(merged))
+            # ── Cross-encoder reranking (optional) ───────
+            reranked = False
+            reranker = self._get_reranker()
+            if reranker and len(merged) > top_k:
+                merged = self._rerank(query, merged, top_k)
+                reranked = True
 
-            return merged
+            result = merged[:top_k]
+
+            logger.info(
+                "retrieval_complete",
+                vector_count=len(vector_docs),
+                bm25_count=len(bm25_docs),
+                merged_count=len(result),
+                reranked=reranked,
+            )
+
+            return result
 
         except Exception as e:
             logger.error("retrieval_failed", error=str(e))
             return [self.db_pool.get_full_schema()]
+
+    def retrieve_expanded(self, query: str, entities: list[str] = None, top_k: int = 5) -> list[str]:
+        """
+        Retrieve with query expansion for better recall on multi-table queries.
+
+        When a user says 'revenue by region', the system needs both the sales
+        and customers tables. Query expansion generates multiple search queries
+        to ensure all needed schemas are retrieved.
+
+        Falls back to standard retrieve() if entities are empty.
+        """
+        if not entities or len(entities) <= 1:
+            return self.retrieve(query, top_k)
+
+        try:
+            expanded_queries = self._expand_query(query, entities)
+            all_docs = []
+            seen_hashes = set()
+
+            for q in expanded_queries:
+                docs = self.retrieve(q, top_k=top_k)
+                for doc in docs:
+                    doc_hash = hash(doc[:200])  # Hash first 200 chars for dedup
+                    if doc_hash not in seen_hashes:
+                        seen_hashes.add(doc_hash)
+                        all_docs.append(doc)
+
+            # Rerank the combined set to select the best top_k
+            reranker = self._get_reranker()
+            if reranker and len(all_docs) > top_k:
+                all_docs = self._rerank(query, all_docs, top_k)
+
+            result = all_docs[:top_k]
+
+            logger.info(
+                "expanded_retrieval_complete",
+                num_queries=len(expanded_queries),
+                total_candidates=len(all_docs),
+                returned=len(result),
+            )
+
+            return result
+
+        except Exception as e:
+            logger.warning("expanded_retrieval_failed", error=str(e))
+            return self.retrieve(query, top_k)
+
+    @staticmethod
+    def _expand_query(query: str, entities: list[str]) -> list[str]:
+        """
+        Generate multiple search queries for better recall.
+
+        Strategy:
+        1. Original query (captures user intent)
+        2. Per-entity queries (ensures each table's schema is searched)
+        3. Relationship query (helps find JOIN paths between entities)
+        """
+        queries = [query]
+
+        # Per-entity focused queries
+        for entity in entities:
+            queries.append(f"{entity} table schema columns relationships")
+
+        # Cross-entity relationship query
+        if len(entities) > 1:
+            queries.append(f"relationship between {' and '.join(entities)} foreign key join")
+
+        return queries
 
     def _vector_search(self, query: str, top_k: int) -> list[str]:
         """ChromaDB semantic similarity search."""
@@ -220,6 +311,34 @@ class HybridRetriever:
 
         sorted_docs = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         return [doc for doc, _ in sorted_docs[:top_k]]
+
+    def _get_reranker(self):
+        """Lazy-load the cross-encoder reranker."""
+        if self._reranker_loaded:
+            return self._reranker
+
+        self._reranker_loaded = True
+        try:
+            from sentence_transformers import CrossEncoder
+            self._reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+            logger.info("cross_encoder_reranker_loaded")
+        except ImportError:
+            logger.info("reranker_unavailable", hint="pip install sentence-transformers for reranking")
+        except Exception as e:
+            logger.warning("reranker_load_failed", error=str(e))
+
+        return self._reranker
+
+    def _rerank(self, query: str, docs: list[str], top_k: int) -> list[str]:
+        """Rerank documents using cross-encoder for precise relevance scoring."""
+        try:
+            pairs = [(query, doc) for doc in docs]
+            scores = self._reranker.predict(pairs)
+            ranked = sorted(zip(docs, scores), key=lambda x: x[1], reverse=True)
+            return [doc for doc, _ in ranked[:top_k]]
+        except Exception as e:
+            logger.warning("reranking_failed", error=str(e))
+            return docs[:top_k]
 
     def refresh_index(self):
         """Re-index the schema (call after schema changes)."""

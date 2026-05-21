@@ -13,14 +13,19 @@ import traceback
 # Ensure backend is on path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import structlog
 
 from app.config import get_settings
 from app.observability.logger import setup_logging
+
+# ── Conversational fast-path (extracted to app/api/fast_path.py) ──
+from app.api.fast_path import detect_conversational as _detect_conversational
 
 # ── Global state ─────────────────────────────────────────
 # NOTE: _app_state is written once at startup and read-only during requests.
@@ -28,8 +33,11 @@ from app.observability.logger import setup_logging
 _app_state = {}
 START_TIME = time.time()
 
-# Path to the frontend directory
-FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "frontend")
+# Path to the frontend — serve the Vite build output (dist/)
+_FRONTEND_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+FRONTEND_DIST = os.path.join(_FRONTEND_ROOT, "frontend", "dist")
+# Fall back to legacy frontend if dist hasn't been built yet
+FRONTEND_DIR = FRONTEND_DIST if os.path.isdir(FRONTEND_DIST) else os.path.join(_FRONTEND_ROOT, "frontend")
 
 
 @asynccontextmanager
@@ -64,6 +72,10 @@ async def lifespan(app: FastAPI):
         logger.info("initializing_llm_router")
         llm_config = {
             "default_provider": settings.DEFAULT_LLM_PROVIDER,
+            "groq_api_key": settings.GROQ_API_KEY,
+            "groq_model_primary": settings.GROQ_MODEL_PRIMARY,
+            "groq_model_fast": settings.GROQ_MODEL_FAST,
+            "groq_base_url": settings.GROQ_BASE_URL,
             "huggingface_token": settings.HUGGINGFACEHUB_API_TOKEN,
             "huggingface_model": settings.DEFAULT_MODEL,
             "openai_api_key": settings.OPENAI_API_KEY,
@@ -101,10 +113,12 @@ async def lifespan(app: FastAPI):
         )
         _app_state["auth_service"] = auth_service
 
-        # ── Create default users ─────────────────────────
-        # WARNING: In-memory user store — for demo/portfolio only.
-        # Production: migrate to a MySQL `users` table.
-        # Registered users are lost on every server restart.
+        # ── Persistent User Store (MySQL-backed) ─────────
+        from app.db.user_repository import UserRepository
+        user_repo = UserRepository(db_pool)
+        _app_state["user_repo"] = user_repo
+
+        # Seed default users on first startup (idempotent via INSERT IGNORE)
         admin_password = os.environ.get("ADMIN_DEFAULT_PASSWORD", "admin123")
         analyst_password = os.environ.get("ANALYST_DEFAULT_PASSWORD", "analyst123")
 
@@ -114,18 +128,21 @@ async def lifespan(app: FastAPI):
                 "Set the ADMIN_DEFAULT_PASSWORD environment variable."
             )
 
-        user_store = {
-            "admin": {
-                "id": "user_1", "username": "admin", "email": "admin@plainsql.io",
-                "password_hash": auth_service.hash_password(admin_password),
-                "role": "admin", "tenant_id": "default",
-            },
-            "analyst": {
-                "id": "user_2", "username": "analyst", "email": "analyst@plainsql.io",
-                "password_hash": auth_service.hash_password(analyst_password),
-                "role": "analyst", "tenant_id": "default",
-            },
-        }
+        user_repo.create(
+            user_id="user_1", username="admin", email="admin@plainsql.io",
+            password_hash=auth_service.hash_password(admin_password),
+            role="admin", tenant_id="default",
+        )
+        user_repo.create(
+            user_id="user_2", username="analyst", email="analyst@plainsql.io",
+            password_hash=auth_service.hash_password(analyst_password),
+            role="analyst", tenant_id="default",
+        )
+
+        # Backward-compatible dict interface for routes that still use user_store
+        user_store = {}
+        for u in user_repo.list_users():
+            user_store[u["username"]] = u
         _app_state["user_store"] = user_store
 
         # ── Observability ────────────────────────────────
@@ -190,18 +207,36 @@ async def lifespan(app: FastAPI):
         conv_router = create_conversations_router(conversation_manager)
         app.include_router(conv_router)
 
+        # ── Admin API ────────────────────────────────────
+        from app.api.routes.admin import create_admin_router
+        admin_router = create_admin_router(
+            rag_retriever=rag_retriever,
+            cache=_app_state["cache"],
+            auth_dep=_app_state["auth_dep"],
+            db_pool=db_pool,
+            llm_router=llm_router,
+            orchestrator=orchestrator,
+        )
+        app.include_router(admin_router)
+
         # ── Request Deduplicator ──────────────────────────
         from app.security.dedup import RequestDeduplicator
         _app_state["dedup"] = RequestDeduplicator()
 
         # ── Legacy /chat endpoint ────────────────────────
-        _register_legacy_chat(app, orchestrator, tracer, _app_state["rate_limiter"], _app_state["input_validator"], _app_state["metrics_collector"], conversation_manager, _app_state["dedup"])
+        is_production = settings.ENV == "production"
+        _register_legacy_chat(app, orchestrator, tracer, _app_state["rate_limiter"], _app_state["input_validator"], _app_state["metrics_collector"], conversation_manager, _app_state["dedup"], require_auth=is_production, auth_service=auth_service)
 
         logger.info("startup_complete",
             providers=llm_router.list_providers(),
             tables=db_pool.get_tables(),
             rag_docs=rag_retriever.collection.count(),
         )
+
+        # ── Startup Smoke Test ────────────────────────────
+        from app.startup import run_smoke_test
+        run_smoke_test(db_pool, rag_retriever, llm_router)
+
         yield
 
     except Exception as e:
@@ -211,28 +246,11 @@ async def lifespan(app: FastAPI):
         logger.info("shutdown_complete")
 
 
-def _ensure_feedback_table(db_pool):
-    """Auto-create the query_feedback table for RLHF data collection."""
-    try:
-        db_pool._execute_write_internal("""
-            CREATE TABLE IF NOT EXISTS query_feedback (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                message_id VARCHAR(64) NOT NULL,
-                user_query TEXT NOT NULL,
-                generated_sql TEXT,
-                rating ENUM('up', 'down') NOT NULL,
-                comment TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_rating (rating),
-                INDEX idx_created (created_at)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-        """)
-        structlog.get_logger().info("feedback_table_ready")
-    except Exception as e:
-        structlog.get_logger().warning("feedback_table_migration_failed", error=str(e))
+# ── Startup utilities (extracted to app/startup.py) ──
+from app.startup import ensure_feedback_table as _ensure_feedback_table
 
 
-def _register_legacy_chat(app: FastAPI, orchestrator, tracer, rate_limiter, input_validator, metrics_collector, conversation_manager=None, dedup=None):
+def _register_legacy_chat(app: FastAPI, orchestrator, tracer, rate_limiter, input_validator, metrics_collector, conversation_manager=None, dedup=None, require_auth: bool = False, auth_service=None):
     """Backward-compatible /chat endpoint for the frontend — now async with metrics."""
     from pydantic import BaseModel, Field
     from typing import List, Optional
@@ -274,11 +292,12 @@ def _register_legacy_chat(app: FastAPI, orchestrator, tracer, rate_limiter, inpu
 
     @app.post("/chat")
     async def legacy_chat(request: LegacyChatRequest, req: Request):
-        # ── Authentication (optional JWT — frontend may not send token) ──
+        # ── Authentication ──
         auth_header = req.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
+        has_token = auth_header.startswith("Bearer ")
+
+        if has_token:
             try:
-                auth_service = _app_state.get("auth_service")
                 if auth_service:
                     auth_service.verify_token(auth_header[7:])
             except Exception:
@@ -286,6 +305,12 @@ def _register_legacy_chat(app: FastAPI, orchestrator, tracer, rate_limiter, inpu
                     status_code=401,
                     content={"error": "Invalid or expired authentication token."},
                 )
+        elif require_auth:
+            # In production, reject unauthenticated requests
+            return JSONResponse(
+                status_code=401,
+                content={"error": "Authentication required. Please log in."},
+            )
 
         # Rate limiting by IP
         client_ip = req.client.host if req.client else "unknown"
@@ -333,6 +358,25 @@ def _register_legacy_chat(app: FastAPI, orchestrator, tracer, rate_limiter, inpu
     @app.post("/chat/stream")
     async def legacy_chat_stream(request: LegacyChatRequest, req: Request):
         """SSE streaming endpoint for the frontend."""
+        # ── Authentication ──
+        auth_header = req.headers.get("Authorization", "")
+        has_token = auth_header.startswith("Bearer ")
+
+        if has_token:
+            try:
+                if auth_service:
+                    auth_service.verify_token(auth_header[7:])
+            except Exception:
+                return JSONResponse(
+                    status_code=401,
+                    content={"error": "Invalid or expired authentication token."},
+                )
+        elif require_auth:
+            return JSONResponse(
+                status_code=401,
+                content={"error": "Authentication required. Please log in."},
+            )
+
         client_ip = req.client.host if req.client else "unknown"
         if not rate_limiter.check(f"stream:{client_ip}"):
             return JSONResponse(
@@ -382,6 +426,17 @@ def _register_legacy_chat(app: FastAPI, orchestrator, tracer, rate_limiter, inpu
             import time as time_mod
             start = time_mod.perf_counter()
 
+            # ── Conversational fast-path (server-side) ────
+            fast_response = _detect_conversational(sanitized)
+            if fast_response:
+                elapsed_ms = round((time_mod.perf_counter() - start) * 1000, 2)
+                yield f"data: {json_mod.dumps({'type': 'message', 'message': fast_response, 'insights': [], 'follow_ups': []})}\n\n"
+                yield f"data: {json_mod.dumps({'type': 'done', 'total_time_ms': elapsed_ms, 'chat_mode': True})}\n\n"
+                structlog.get_logger().info("conversational_fast_path", query=sanitized[:50], elapsed_ms=elapsed_ms)
+                if dedup and query_hash:
+                    dedup.release(query_hash)
+                return
+
             # ── Cache HIT: return immediately ─────────────
             if cached_result:
                 elapsed_ms = round((time_mod.perf_counter() - start) * 1000, 2)
@@ -399,82 +454,83 @@ def _register_legacy_chat(app: FastAPI, orchestrator, tracer, rate_limiter, inpu
                     dedup.release(query_hash)
                 return
 
-            # ── Cache MISS: run full pipeline ─────────────
-            yield f"data: {json_mod.dumps({'type': 'stage', 'stage': 'processing', 'message': 'Analyzing your question...'})}\n\n"
+            # ── Progressive streaming pipeline ─────────────
+            # Uses aprocess_query_streaming() which yields events as each
+            # pipeline stage completes, instead of waiting for everything.
+            sql = ""
+            last_event = {}
+            try:
+                async for event in orchestrator.aprocess_query_streaming(
+                    user_query=sanitized,
+                    conversation_history=safe_history,
+                ):
+                    last_event = event
+                    event_type = event.get("type", "")
 
-            result = await orchestrator.aprocess_query(
-                user_query=sanitized,
-                conversation_history=safe_history,
-            )
+                    # Track SQL for caching/persistence
+                    if event_type == "sql":
+                        sql = event.get("sql", "")
 
-            elapsed_ms = round((time_mod.perf_counter() - start) * 1000, 2)
-            tracer.trace_query(result)
+                    # Forward every event to the frontend as SSE
+                    yield f"data: {json_mod.dumps(event, default=str)}\\n\\n"
 
-            # Record metrics
-            metrics_collector.record_query(
-                latency_ms=elapsed_ms,
-                intent=result.get("intent", "unknown"),
-                success=not bool(result.get("error")),
-                error_agent=result.get("error_agent"),
-            )
+                # ── Post-pipeline: metrics, cache, persistence ──
+                elapsed_ms = last_event.get("total_time_ms", round((time_mod.perf_counter() - start) * 1000, 2))
+                has_error = last_event.get("error", False)
 
-            # Stream intent
-            yield f"data: {json_mod.dumps({'type': 'intent', 'intent': result.get('intent', ''), 'complexity': result.get('complexity', '')}, default=str)}\n\n"
+                metrics_collector.record_query(
+                    latency_ms=elapsed_ms,
+                    intent="unknown",
+                    success=not has_error,
+                    error_agent="pipeline" if has_error else None,
+                )
 
-            # Stream SQL
-            sql = result.get("sanitized_sql") or result.get("generated_sql", "")
-            if sql:
-                yield f"data: {json_mod.dumps({'type': 'sql', 'sql': sql, 'explanation': result.get('sql_explanation', '')}, default=str)}\n\n"
+                # Write to Redis cache
+                if cache and sql and not has_error:
+                    try:
+                        cache_payload = {
+                            "sql": sql, "explanation": "", "message": "",
+                            "answer": [], "intent": "", "complexity": "",
+                            "row_count": 0, "insights": [], "follow_ups": [],
+                        }
+                        cache.set(sanitized, cache_payload)
+                    except Exception:
+                        pass
 
-            # Stream results
-            yield f"data: {json_mod.dumps({'type': 'results', 'data': result.get('query_results', [])[:100], 'row_count': result.get('row_count', 0), 'execution_time_ms': result.get('execution_time_ms', 0)}, default=str)}\n\n"
+                # Persist messages
+                if conversation_manager and request.conversation_id:
+                    try:
+                        conversation_manager.save_user_message(request.conversation_id, sanitized)
+                        conversation_manager.save_assistant_message(
+                            conversation_id=request.conversation_id,
+                            content="", generated_sql=sql, explanation="",
+                            friendly_message="", intent="",
+                            execution_time_ms=elapsed_ms, row_count=0, result_data=[],
+                        )
+                    except Exception:
+                        pass
 
-            # Stream message + insights
-            yield f"data: {json_mod.dumps({'type': 'message', 'message': result.get('friendly_message', ''), 'insights': result.get('insights', []), 'follow_ups': result.get('follow_up_questions', [])}, default=str)}\n\n"
+            except Exception as pipeline_err:
+                elapsed_ms = round((time_mod.perf_counter() - start) * 1000, 2)
+                structlog.get_logger().error(
+                    "sse_pipeline_crash",
+                    error=str(pipeline_err),
+                    query=sanitized[:80],
+                    elapsed_ms=elapsed_ms,
+                )
+                metrics_collector.record_query(
+                    latency_ms=elapsed_ms, intent="unknown",
+                    success=False, error_agent="pipeline",
+                )
+                yield f"data: {json_mod.dumps({'type': 'error', 'error': 'An internal error occurred. Please try again.'})}\\n\\n"
+                yield f"data: {json_mod.dumps({'type': 'done', 'total_time_ms': elapsed_ms, 'error': True})}\\n\\n"
 
-            # Done
-            yield f"data: {json_mod.dumps({'type': 'done', 'total_time_ms': elapsed_ms})}\n\n"
-
-            # ── Write to Redis cache (only for successful SQL queries) ──
-            if cache and sql and not result.get("error"):
-                try:
-                    cache_payload = {
-                        "sql": sql,
-                        "explanation": result.get("sql_explanation", ""),
-                        "message": result.get("friendly_message", ""),
-                        "answer": result.get("query_results", [])[:100],
-                        "intent": result.get("intent", ""),
-                        "complexity": result.get("complexity", ""),
-                        "row_count": result.get("row_count", 0),
-                        "insights": result.get("insights", []),
-                        "follow_ups": result.get("follow_up_questions", []),
-                    }
-                    cache.set(sanitized, cache_payload)
-                    structlog.get_logger().info("cache_written", query=sanitized[:50])
-                except Exception as cache_err:
-                    structlog.get_logger().warning("cache_write_failed", error=str(cache_err))
-
-            # ── Persist messages to MySQL (fire-and-forget) ───────
-            if conversation_manager and request.conversation_id:
-                try:
-                    conversation_manager.save_user_message(request.conversation_id, sanitized)
-                    conversation_manager.save_assistant_message(
-                        conversation_id=request.conversation_id,
-                        content=result.get('friendly_message', ''),
-                        generated_sql=sql,
-                        explanation=result.get('sql_explanation', ''),
-                        friendly_message=result.get('friendly_message', ''),
-                        intent=result.get('intent', ''),
-                        execution_time_ms=elapsed_ms,
-                        row_count=result.get('row_count', 0),
-                        result_data=result.get('query_results', []),
-                    )
-                except Exception as persist_err:
-                    structlog.get_logger().warning("message_persist_failed", error=str(persist_err))
-
-            # ── Complete dedup slot (releases waiting clients) ──
-            if dedup and query_hash:
-                dedup.complete(query_hash, {'type': 'results', 'sql': sql, 'row_count': result.get('row_count', 0)})
+            finally:
+                if dedup and query_hash:
+                    try:
+                        dedup.complete(query_hash, {'type': 'results', 'sql': sql, 'row_count': 0})
+                    except Exception:
+                        dedup.release(query_hash)
 
         return StreamingResponse(
             event_generator(),
@@ -485,13 +541,15 @@ def _register_legacy_chat(app: FastAPI, orchestrator, tracer, rate_limiter, inpu
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    is_production = settings.ENV == "production"
     app = FastAPI(
         title="PlainSQL Enterprise API",
         description="Production-grade Text-to-SQL multi-agent system",
         version=settings.APP_VERSION,
         lifespan=lifespan,
-        docs_url="/docs",
-        redoc_url="/redoc",
+        # Disable API docs in production to prevent schema disclosure
+        docs_url=None if is_production else "/docs",
+        redoc_url=None if is_production else "/redoc",
     )
 
     # ── CORS — use configured origins, not wildcard ──────
@@ -573,6 +631,11 @@ def create_app() -> FastAPI:
     @app.get("/app.js")
     async def serve_app_js():
         return FileResponse(os.path.join(FRONTEND_DIR, "app.js"), media_type="application/javascript")
+
+    # ── Serve Vite build assets (JS, CSS chunks, images) ─
+    assets_dir = os.path.join(FRONTEND_DIR, "assets")
+    if os.path.isdir(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
     return app
 

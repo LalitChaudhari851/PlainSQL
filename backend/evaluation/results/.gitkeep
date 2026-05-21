@@ -1,0 +1,2 @@
+# Evaluation results directory — populated by running:
+#   cd backend && python -m evaluation.runner

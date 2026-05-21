@@ -1,54 +1,60 @@
 # ═══════════════════════════════════════════════════════════
-# PlainSQL Enterprise v2.0 — Backend Dependencies
+# PlainSQL Enterprise v2.0 — Backend Dependencies (Pinned)
 # ═══════════════════════════════════════════════════════════
 
 # ── Core Framework ───────────────────────────────────────
-fastapi>=0.115.0
-uvicorn[standard]>=0.30.0
-pydantic>=2.9.0
-pydantic-settings>=2.5.0
+fastapi>=0.115.0,<0.116.0
+uvicorn[standard]>=0.30.0,<0.32.0
+pydantic>=2.9.0,<3.0.0
+pydantic-settings>=2.5.0,<3.0.0
 
 # ── LangGraph Multi-Agent Pipeline ───────────────────────
-langgraph>=0.2.0
-langchain-core>=0.3.0
+langgraph>=0.2.0,<0.3.0
+langchain-core>=0.3.0,<0.4.0
 
 # ── LLM Providers ───────────────────────────────────────
-huggingface_hub>=0.23.0
-# openai>=1.40.0          # Uncomment if using OpenAI
-# anthropic>=0.34.0       # Uncomment if using Anthropic
+huggingface_hub>=0.23.0,<0.30.0
+# openai>=1.40.0,<2.0.0        # Uncomment if using OpenAI
+# anthropic>=0.34.0,<1.0.0     # Uncomment if using Anthropic
 
 # ── Database ─────────────────────────────────────────────
-pymysql>=1.1.0
-sqlalchemy>=2.0.0
+pymysql>=1.1.0,<1.2.0
+sqlalchemy>=2.0.0,<2.1.0
 
 # ── RAG / Vector Search ─────────────────────────────────
-chromadb>=0.5.0
-rank-bm25>=0.2.2
+chromadb>=0.5.0,<0.6.0
+rank-bm25>=0.2.2,<0.3.0
 
 # ── SQL Safety & Parsing ────────────────────────────────
-sqlparse>=0.5.0
+sqlparse>=0.5.0,<0.6.0
 
 # ── Authentication ───────────────────────────────────────
-python-jose[cryptography]>=3.3.0
-bcrypt>=4.0.0
+python-jose[cryptography]>=3.3.0,<4.0.0
+bcrypt>=4.0.0,<5.0.0
 
 # ── Observability ────────────────────────────────────────
-structlog>=24.0.0
+structlog>=24.0.0,<25.0.0
+prometheus_client>=0.20.0,<1.0.0
 
 # ── Cache & Rate Limiting ────────────────────────────────
-redis[hiredis]>=5.0.0
-filelock>=3.13.0
+redis[hiredis]>=5.0.0,<6.0.0
+filelock>=3.13.0,<4.0.0
+
+# ── ML Classifier ────────────────────────────────────
+scikit-learn>=1.4.0,<1.6.0
+sentence-transformers>=3.0.0,<4.0.0
+joblib>=1.3.0,<2.0.0
 
 # ── Utilities ────────────────────────────────────────────
-python-dotenv>=1.0.0
+python-dotenv>=1.0.0,<2.0.0
 numpy<2.0.0
-pandas>=2.0.0
-requests>=2.31.0
+pandas>=2.0.0,<3.0.0
+requests>=2.31.0,<3.0.0
 
 # ── Dev / Testing ────────────────────────────────────────
-faker>=25.0.0
-pytest>=8.0.0
-pytest-asyncio>=0.23.0
-httpx>=0.27.0
-locust>=2.20.0
-ruff>=0.6.0
+faker>=25.0.0,<30.0.0
+pytest>=8.0.0,<9.0.0
+pytest-asyncio>=0.23.0,<1.0.0
+httpx>=0.27.0,<1.0.0
+locust>=2.20.0,<3.0.0
+ruff>=0.6.0,<1.0.0

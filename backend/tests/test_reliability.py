@@ -259,3 +259,152 @@ class TestVisualizationEdgeCases:
         }
         result = visualization_node(state)
         assert result["chart_type"] == "doughnut"  # <= MAX_PIE_CATEGORIES
+
+
+# ── Dedup Slot Leak Prevention Tests ─────────────────────────
+
+class TestDedupSlotLeak:
+    """Verify dedup slots are ALWAYS released, even on errors."""
+
+    def test_release_frees_slot(self):
+        from app.security.dedup import RequestDeduplicator
+        dedup = RequestDeduplicator()
+        _, h = dedup.try_acquire("test query")
+        assert dedup.inflight_count == 1
+        dedup.release(h)
+        assert dedup.inflight_count == 0
+
+    def test_complete_then_reacquire(self):
+        """After complete(), the same query can be reacquired."""
+        from app.security.dedup import RequestDeduplicator
+        dedup = RequestDeduplicator()
+        _, h = dedup.try_acquire("test query")
+        dedup.complete(h, {"status": "ok"})
+        # Wait briefly then release
+        dedup.release(h)
+        # Should be acquirable again
+        is_new, h2 = dedup.try_acquire("test query")
+        assert is_new is True
+        dedup.release(h2)
+
+    def test_release_on_missing_hash_is_safe(self):
+        """Releasing a non-existent hash should not raise."""
+        from app.security.dedup import RequestDeduplicator
+        dedup = RequestDeduplicator()
+        dedup.release("nonexistent_hash")  # Should not raise
+
+    def test_complete_on_missing_hash_is_safe(self):
+        """Completing a non-existent hash should not raise."""
+        from app.security.dedup import RequestDeduplicator
+        dedup = RequestDeduplicator()
+        dedup.complete("nonexistent_hash", {"status": "ok"})  # Should not raise
+
+
+# ── Result Summary Grounding Tests ───────────────────────────
+
+class TestResultSummaryGrounding:
+    """Verify the result_summary agent grounds summaries in actual data."""
+
+    def test_deterministic_summary_with_numeric_data(self):
+        from app.agents.result_summary import result_summary_node
+        state = {
+            "query_results": [
+                {"region": "North", "revenue": 120000},
+                {"region": "South", "revenue": 85000},
+                {"region": "East", "revenue": 95000},
+            ],
+            "column_names": ["region", "revenue"],
+            "user_query": "Total revenue by region",
+            "row_count": 3,
+            "execution_time_ms": 42.5,
+            "trace_id": "test",
+        }
+        result = result_summary_node(state, llm_router=None)
+        msg = result.get("friendly_message", "")
+        assert "3" in msg  # Should mention 3 results
+        assert "300,000" in msg or "300000" in msg  # Total should be 300k
+
+    def test_empty_results_returns_nothing(self):
+        from app.agents.result_summary import result_summary_node
+        state = {"query_results": [], "column_names": [], "trace_id": "test"}
+        result = result_summary_node(state)
+        assert result == {}  # No override — keep original message
+
+    def test_no_numeric_columns(self):
+        from app.agents.result_summary import result_summary_node
+        state = {
+            "query_results": [{"name": "Alice"}, {"name": "Bob"}],
+            "column_names": ["name"],
+            "user_query": "Show employees",
+            "row_count": 2,
+            "execution_time_ms": 10,
+            "trace_id": "test",
+        }
+        result = result_summary_node(state, llm_router=None)
+        msg = result.get("friendly_message", "")
+        assert "2" in msg  # Should mention 2 results
+
+    def test_compute_aggregates_accuracy(self):
+        from app.agents.result_summary import _compute_aggregates
+        results = [{"val": 10}, {"val": 20}, {"val": 30}]
+        aggs = _compute_aggregates(results, ["val"])
+        assert aggs["val"]["sum"] == 60
+        assert aggs["val"]["avg"] == 20
+        assert aggs["val"]["min"] == 10
+        assert aggs["val"]["max"] == 30
+
+
+# ── Redis Cache Key Pattern Tests ────────────────────────────
+
+class TestCacheKeyPatterns:
+    """Verify cache key generation is consistent."""
+
+    def test_make_key_deterministic(self):
+        """Same inputs always produce the same key."""
+        from app.cache.redis_client import RedisCache
+        k1 = RedisCache._make_key("show employees", "default")
+        k2 = RedisCache._make_key("show employees", "default")
+        assert k1 == k2
+
+    def test_make_key_tenant_isolation(self):
+        """Different tenants produce different keys."""
+        from app.cache.redis_client import RedisCache
+        k1 = RedisCache._make_key("show employees", "tenant_a")
+        k2 = RedisCache._make_key("show employees", "tenant_b")
+        assert k1 != k2
+
+    def test_make_key_case_insensitive(self):
+        """Queries are lowercased before hashing."""
+        from app.cache.redis_client import RedisCache
+        k1 = RedisCache._make_key("Show Employees", "default")
+        k2 = RedisCache._make_key("show employees", "default")
+        assert k1 == k2
+
+
+# ── DB Connection Pool Resilience Tests ──────────────────────
+
+class TestDBPoolResilience:
+    """Test connection pool edge cases."""
+
+    def test_pool_status_returns_dict(self):
+        """get_pool_status should return a well-formed status dict (mocked)."""
+        pool_mock = MagicMock()
+        pool_mock.size.return_value = 10
+        pool_mock.checkedout.return_value = 2
+        pool_mock.overflow.return_value = 0
+        pool_mock.checkedin.return_value = 8
+
+        engine_mock = MagicMock()
+        engine_mock.pool = pool_mock
+
+        from app.db.connection import DatabasePool
+        # Create a minimal instance without connecting
+        db = object.__new__(DatabasePool)
+        db._engine = engine_mock
+
+        status = db.get_pool_status()
+        assert status["pool_size"] == 10
+        assert status["checked_out"] == 2
+        assert status["overflow"] == 0
+        assert status["checked_in"] == 8
+

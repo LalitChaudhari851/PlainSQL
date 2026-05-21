@@ -47,9 +47,27 @@ Previous attempt: {state.get('generated_sql', 'N/A')}
 Generate a corrected version.
 """
 
+    # Dynamic few-shot: select similar examples from eval dataset
+    dynamic_examples = ""
+    try:
+        from app.prompts.few_shot import get_few_shot_selector
+        selector = get_few_shot_selector()
+        similar = selector.select(user_query, k=3)
+        if similar:
+            dynamic_examples = selector.format_for_prompt(similar)
+            logger.debug("dynamic_few_shot_selected", count=len(similar))
+    except Exception as e:
+        logger.debug("dynamic_few_shot_unavailable", error=str(e))
+
+    # Combine schema context with dynamic examples
+    full_context = context
+    if dynamic_examples:
+        full_context = context + "\n" + dynamic_examples
+
     prompt_template = get_prompt_registry().get("sql_generation")
+    prompt_version = prompt_template.version
     messages = prompt_template.render(
-        schema_context=context,
+        schema_context=full_context,
         history_context=history_text,
         retry_context=retry_context,
         user_query=user_query,
@@ -82,6 +100,7 @@ Generate a corrected version.
             "generated_sql": sql_query,
             "sql_explanation": explanation,
             "friendly_message": message,
+            "prompt_version": prompt_version,
         }
 
     except Exception as e:

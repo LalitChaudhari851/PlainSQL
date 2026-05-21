@@ -71,11 +71,15 @@ class RedisCache:
             logger.warning("redis_set_failed", error=str(e))
 
     def invalidate(self, tenant_id: str = "default"):
-        """Clear all cache entries for a specific tenant."""
+        """Clear all cache entries.
+        Note: Since cache keys are SHA-256 hashes of '{tenant_id}:{query}',
+        we cannot filter by tenant from the key alone. This purges all entries.
+        For tenant-isolated purge, store tenant_id in the value and scan.
+        """
         if not self._client:
             return
         try:
-            pattern = f"plainsql:cache:{tenant_id}:*"
+            pattern = "plainsql:cache:*"
             cursor = 0
             while True:
                 cursor, keys = self._client.scan(cursor, match=pattern, count=100)
@@ -112,6 +116,8 @@ class RedisRateLimiter:
     def __init__(self, redis_url: str, requests_per_minute: int = 60):
         self.rpm = requests_per_minute
         self._client = None
+        self._consecutive_failures = 0
+        self._max_failures_before_deny = 3  # Fail closed after this many errors
         try:
             import redis
             self._client = redis.Redis.from_url(
@@ -133,7 +139,7 @@ class RedisRateLimiter:
     def check(self, key: str) -> bool:
         """Returns True if request is allowed, False if rate limited."""
         if not self._client:
-            return True  # Fail open if Redis unavailable
+            return True  # Fail open only when Redis was never connected
         try:
             redis_key = f"plainsql:ratelimit:{key}"
             now = time.time()
@@ -151,10 +157,21 @@ class RedisRateLimiter:
             results = pipe.execute()
 
             current_count = results[1]
+            self._consecutive_failures = 0  # Reset on success
             return current_count < self.rpm
         except Exception as e:
-            logger.warning("redis_rate_check_failed", error=str(e))
-            return True  # Fail open
+            self._consecutive_failures += 1
+            logger.warning(
+                "redis_rate_check_failed",
+                error=str(e),
+                consecutive_failures=self._consecutive_failures,
+            )
+            # Fail CLOSED after repeated Redis failures to prevent
+            # unlimited throughput during outages
+            if self._consecutive_failures >= self._max_failures_before_deny:
+                logger.error("rate_limiter_fail_closed", reason="redis_unavailable")
+                return False
+            return True  # Allow during transient errors
 
 
 def create_cache(redis_url: str = None, ttl_seconds: int = 300):

@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from typing import Optional
 
 from app.auth.jwt_auth import AuthService
-from app.observability.metrics import metrics, AUTH_FAILURES, ACTIVE_REQUESTS
+from app.observability.metrics import metrics
 
 logger = structlog.get_logger()
 
@@ -110,35 +110,38 @@ class QueryCache:
 def create_auth_dependency(auth_service: AuthService):
     """
     Create a FastAPI dependency for JWT authentication.
-    Returns user info dict from the JWT payload.
+    Token is OPTIONAL — unauthenticated requests receive a guest analyst identity.
+    This allows the frontend to work without login for development/demo use.
     """
+    # Default guest identity for unauthenticated requests
+    GUEST_USER = {
+        "sub": "guest",
+        "username": "guest",
+        "role": "analyst",
+        "tenant_id": "default",
+    }
+
     def get_current_user(request: Request) -> dict:
-        # Check for Bearer token
         auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-        elif "X-API-Key" in request.headers:
-            token = request.headers["X-API-Key"]
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Missing authentication token",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+        api_key = request.headers.get("X-API-Key", "")
+
+        # No credentials provided — return guest identity (no 401)
+        if not auth_header.startswith("Bearer ") and not api_key:
+            return GUEST_USER
+
+        token = auth_header[7:] if auth_header.startswith("Bearer ") else api_key
 
         try:
             payload = auth_service.verify_token(token)
             return payload
         except Exception as e:
-            metrics.increment(AUTH_FAILURES)
+            metrics.increment("plainsql_auth_failures_total")
             logger.warning("auth_failed", error=str(e))
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired token",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+            # Invalid token → still return guest rather than blocking (dev-friendly)
+            return GUEST_USER
 
     return get_current_user
+
 
 
 # ── Request Logging Middleware ───────────────────────────
@@ -158,13 +161,13 @@ class RequestLoggingMiddleware:
         request = Request(scope, receive)
 
         # Track active requests
-        metrics.set_gauge(ACTIVE_REQUESTS, metrics.gauges.get(ACTIVE_REQUESTS, 0) + 1)
+        metrics.set_gauge("plainsql_active_requests", 1)
 
         try:
             await self.app(scope, receive, send)
         finally:
             elapsed = round((time.time() - start_time) * 1000, 2)
-            metrics.set_gauge(ACTIVE_REQUESTS, max(0, metrics.gauges.get(ACTIVE_REQUESTS, 0) - 1))
+            metrics.set_gauge("plainsql_active_requests", 0)
 
             logger.info(
                 "http_request",

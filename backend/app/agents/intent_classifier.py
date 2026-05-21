@@ -1,6 +1,10 @@
 """
 Intent classifier for routing user input before SQL generation.
 
+Uses a hybrid approach:
+1. ML model (sentence-transformers + LogisticRegression) when available and confident
+2. Heuristic keyword matching as a fallback
+
 Clear chat messages return fast and never touch schema retrieval or SQL
 generation. Database-shaped requests continue through the existing SQL path.
 """
@@ -8,10 +12,15 @@ generation. Database-shaped requests continue through the existing SQL path.
 from dataclasses import dataclass
 from typing import Literal
 import re
+import structlog
 
+logger = structlog.get_logger()
 
 IntentKind = Literal["chat", "sql", "ambiguous"]
 RouteIntent = Literal["chat", "ambiguous", "meta_query", "data_query", "aggregation", "comparison", "explanation"]
+
+# Minimum confidence from the ML model to trust its classification
+_ML_CONFIDENCE_THRESHOLD = 0.70
 
 
 @dataclass(frozen=True)
@@ -91,10 +100,23 @@ EXPLANATION_KEYWORDS = {"explain this", "why did", "what does this query"}
 
 
 def classify_intent(user_query: str) -> IntentClassification:
-    """Classify input as chat, SQL, or ambiguous and choose the downstream graph route."""
+    """
+    Classify input as chat, SQL, or ambiguous and choose the downstream graph route.
+
+    Strategy:
+    1. Try ML model first (sentence-transformers + LogisticRegression)
+    2. If model unavailable or confidence < threshold, fall back to heuristic
+    """
     query = _normalize(user_query)
     if not query:
         return IntentClassification("chat", "chat", reason="empty")
+
+    # ── ML Classification (preferred) ────────────────────
+    ml_result = _try_ml_classification(user_query)
+    if ml_result is not None:
+        return ml_result
+
+    # ── Heuristic Fallback ───────────────────────────────
 
     # Meta queries are always SQL
     if any(kw in query for kw in META_KEYWORDS):
@@ -224,3 +246,64 @@ def _estimate_complexity(query: str) -> Literal["simple", "moderate", "complex"]
     if any(kw in query for kw in ("join", "compare", " vs ", " versus ", "group by", " by ")):
         return "moderate"
     return "simple"
+
+
+# ── ML Classification Bridge ────────────────────────────────
+
+def _try_ml_classification(user_query: str) -> IntentClassification | None:
+    """
+    Attempt to classify using the ML model.
+
+    Returns an IntentClassification if the model is available and confident,
+    or None to signal the caller should use the heuristic fallback.
+    """
+    try:
+        from app.agents.ml_classifier import get_ml_classifier
+
+        classifier = get_ml_classifier()
+        if not classifier.available:
+            return None
+
+        result = classifier.classify(user_query)
+        if result is None:
+            return None
+
+        # Only trust the ML model when it's confident enough
+        if result.confidence < _ML_CONFIDENCE_THRESHOLD:
+            logger.debug(
+                "ml_confidence_below_threshold",
+                confidence=result.confidence,
+                threshold=_ML_CONFIDENCE_THRESHOLD,
+                ml_label=result.intent,
+                fallback="heuristic",
+            )
+            return None
+
+        # Map ML result to the full IntentClassification with complexity
+        query_normalized = _normalize(user_query)
+        complexity = _estimate_complexity(query_normalized)
+
+        # For SQL intents, refine the route using the heuristic sub-classifier
+        if result.intent == "sql":
+            route = _classify_sql_route(query_normalized)
+        else:
+            route = result.route_intent
+
+        logger.info(
+            "intent_classified",
+            method="ml",
+            intent=result.intent,
+            route_intent=route,
+            confidence=round(result.confidence, 3),
+        )
+
+        return IntentClassification(
+            intent=result.intent,
+            route_intent=route,
+            complexity=complexity,
+            reason=f"ml_model(conf={result.confidence:.2f})",
+        )
+
+    except Exception as e:
+        logger.debug("ml_classification_unavailable", error=str(e))
+        return None

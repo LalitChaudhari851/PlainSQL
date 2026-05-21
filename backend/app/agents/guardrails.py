@@ -59,50 +59,62 @@ class OutputGuardrail:
             if not parsed:
                 return warnings
 
-            # Known SQL functions to skip
+            # Comprehensive SQL functions to skip
             sql_functions = {
                 "count", "sum", "avg", "min", "max", "round", "coalesce",
                 "ifnull", "isnull", "nullif", "concat", "substring", "trim",
                 "upper", "lower", "length", "cast", "convert", "date_format",
                 "date_sub", "date_add", "curdate", "now", "year", "month",
                 "day", "hour", "minute", "second", "datediff", "timestampdiff",
-                "group_concat", "distinct", "if", "case", "when", "then",
-                "else", "end", "exists", "any", "all", "interval",
+                "group_concat", "distinct", "if", "abs", "ceil", "floor",
+                "power", "sqrt", "mod", "sign", "truncate", "replace",
+                "lpad", "rpad", "left", "right", "reverse", "space",
+                "char_length", "character_length", "locate", "instr",
+                "field", "elt", "format", "hex", "unhex", "crc32",
+                "last_insert_id", "row_number", "rank", "dense_rank",
+                "ntile", "lag", "lead", "first_value", "last_value",
+                "nth_value", "percent_rank", "cume_dist", "quarter",
+                "week", "dayofweek", "dayofyear", "monthname", "dayname",
+                "time", "timestamp", "str_to_date", "date",
             }
 
-            # Known SQL keywords that appear as Name tokens
+            # SQL keywords that appear as Name tokens
             sql_keywords = {
                 "asc", "desc", "limit", "offset", "as", "on", "and", "or",
                 "not", "in", "between", "like", "is", "null", "true", "false",
                 "inner", "left", "right", "outer", "cross", "natural",
                 "select", "from", "where", "join", "group", "order", "having",
                 "by", "union", "except", "intersect", "with", "recursive",
+                "case", "when", "then", "else", "end", "exists", "any", "all",
+                "interval", "rows", "unbounded", "preceding", "following",
+                "over", "partition", "range", "current", "row",
+                "rollup", "cube", "grouping", "sets",
             }
 
-            # Extract aliases defined in the SQL to avoid false positives.
-            # Matches: FROM table alias, FROM table AS alias, JOIN table alias
-            sql_upper_for_alias = sql
-            alias_pattern = re.compile(
-                r'(?:FROM|JOIN)\s+`?(\w+)`?\s+(?:AS\s+)?`?(\w+)`?',
-                re.IGNORECASE,
-            )
-            select_alias_pattern = re.compile(
-                r'\bAS\s+`?(\w+)`?',
-                re.IGNORECASE,
-            )
+            # ── Extract ALL defined aliases ──────────────────
             defined_aliases = set()
-            for m in alias_pattern.finditer(sql_upper_for_alias):
+
+            # 1. SELECT ... AS alias_name (column aliases)
+            for m in re.finditer(r'\bAS\s+`?(\w+)`?', sql, re.IGNORECASE):
+                defined_aliases.add(m.group(1).lower())
+
+            # 2. FROM/JOIN table aliases
+            for m in re.finditer(
+                r'(?:FROM|JOIN)\s+`?(\w+)`?\s+(?:AS\s+)?`?(\w+)`?',
+                sql, re.IGNORECASE,
+            ):
                 alias = m.group(2).lower()
                 table = m.group(1).lower()
-                # Only treat as alias if it's different from the table name
-                if alias != table:
+                if alias != table and alias not in sql_keywords:
                     defined_aliases.add(alias)
-            for m in select_alias_pattern.finditer(sql_upper_for_alias):
+
+            # 3. CTE names: WITH cte_name AS (...)
+            for m in re.finditer(r'\bWITH\s+(\w+)\s+AS\s*\(', sql, re.IGNORECASE):
                 defined_aliases.add(m.group(1).lower())
 
             for token in parsed[0].flatten():
                 if token.ttype is sqlparse.tokens.Name:
-                    name = token.value.lower().strip("`\"[]")
+                    name = token.value.lower().strip('`"[]')
 
                     # Skip known SQL functions and keywords
                     if name in sql_functions or name in sql_keywords:

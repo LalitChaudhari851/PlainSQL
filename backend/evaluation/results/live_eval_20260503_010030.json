@@ -1,0 +1,667 @@
+{
+  "timestamp": "2026-05-03T00:52:52.405527",
+  "dataset_size": 35,
+  "component_eval": {
+    "sql_validation": {
+      "status": "PASS",
+      "dangerous_blocked": "6/7",
+      "safe_allowed": "35/35",
+      "block_rate": 85.71428571428571,
+      "allow_rate": 100.0
+    },
+    "intent_classification": {
+      "status": "PASS",
+      "accuracy": 100.0,
+      "correct": 12,
+      "total": 12
+    },
+    "prompt_registry": {
+      "status": "PASS",
+      "templates": 3,
+      "missing": [],
+      "render_ok": 5
+    },
+    "guardrails": {
+      "status": "PASS",
+      "valid_accepted": "35/35",
+      "hallucinations_caught": "3/3"
+    },
+    "structural_metrics": {
+      "status": "PASS",
+      "avg_self_similarity": 1.0,
+      "perfect_self_match": "35/35",
+      "false_positive_hallucinations": 50
+    }
+  },
+  "llm_eval": {
+    "eval_type": "live_llm",
+    "timestamp": "2026-05-03T01:00:30.058989",
+    "total_queries": 35,
+    "exact_match_rate": 5.7,
+    "execution_accuracy": 28.6,
+    "avg_structural_similarity": 0.762,
+    "total_hallucinations": 56,
+    "error_count": 1,
+    "latency": {
+      "avg_ms": 12019.91,
+      "p50_ms": 12007.69,
+      "p95_ms": 15043.85,
+      "min_ms": 7968.19,
+      "max_ms": 16045.02
+    },
+    "by_difficulty": {
+      "easy": {
+        "count": 15,
+        "exact_match_rate": 13.3,
+        "execution_accuracy": 40.0,
+        "avg_similarity": 0.687,
+        "avg_latency_ms": 11116.74
+      },
+      "medium": {
+        "count": 13,
+        "exact_match_rate": 0.0,
+        "execution_accuracy": 30.8,
+        "avg_similarity": 0.833,
+        "avg_latency_ms": 12993.71
+      },
+      "hard": {
+        "count": 7,
+        "exact_match_rate": 0.0,
+        "execution_accuracy": 0.0,
+        "avg_similarity": 0.793,
+        "avg_latency_ms": 12146.82
+      }
+    },
+    "by_category": {
+      "comparison": {
+        "count": 1,
+        "exact_match_rate": 0.0,
+        "avg_similarity": 0.714
+      },
+      "aggregation": {
+        "count": 20,
+        "exact_match_rate": 0.0,
+        "avg_similarity": 0.81
+      },
+      "data_query": {
+        "count": 14,
+        "exact_match_rate": 14.3,
+        "avg_similarity": 0.698
+      }
+    },
+    "results": [
+      {
+        "id": "eval_001",
+        "question": "Show top 5 employees by salary",
+        "difficulty": "easy",
+        "category": "data_query",
+        "expected_sql": "SELECT name, salary FROM employees ORDER BY salary DESC LIMIT 5",
+        "generated_sql": "SELECT name, salary FROM employees ORDER BY salary DESC LIMIT 5;",
+        "exact_match": true,
+        "execution_match": true,
+        "structural_similarity": 1.0,
+        "hallucinations": [],
+        "latency_ms": 12782.15,
+        "error": null
+      },
+      {
+        "id": "eval_002",
+        "question": "What is the total sales revenue?",
+        "difficulty": "easy",
+        "category": "aggregation",
+        "expected_sql": "SELECT SUM(total_amount) as total_revenue FROM sales",
+        "generated_sql": "SELECT SUM(total_amount) AS total_revenue FROM sales LIMIT 100;",
+        "exact_match": false,
+        "execution_match": true,
+        "structural_similarity": 0.6666666666666666,
+        "hallucinations": [
+          "Unknown identifier: total_revenue"
+        ],
+        "latency_ms": 10329.5,
+        "error": null
+      },
+      {
+        "id": "eval_003",
+        "question": "Total sales revenue by region",
+        "difficulty": "medium",
+        "category": "aggregation",
+        "expected_sql": "SELECT c.region, SUM(s.total_amount) as revenue FROM sales s JOIN customers c ON s.customer_id = c.id GROUP BY c.region",
+        "generated_sql": "SELECT c.region, SUM(s.total_amount) AS revenue FROM sales s JOIN customers c ON s.customer_id = c.id GROUP BY c.region ORDER BY revenue DESC LIMIT 100;",
+        "exact_match": false,
+        "execution_match": true,
+        "structural_similarity": 0.6666666666666666,
+        "hallucinations": [
+          "Unknown identifier: revenue",
+          "Unknown identifier: revenue"
+        ],
+        "latency_ms": 15043.85,
+        "error": null
+      },
+      {
+        "id": "eval_004",
+        "question": "Which department has the highest average salary?",
+        "difficulty": "medium",
+        "category": "aggregation",
+        "expected_sql": "SELECT d.name, AVG(e.salary) as avg_salary FROM employees e JOIN departments d ON e.department_id = d.id GROUP BY d.name ORDER BY avg_salary DESC LIMIT 1",
+        "generated_sql": "SELECT d.name AS department, AVG(e.salary) AS avg_salary FROM employees e JOIN departments d ON e.department_id = d.id GROUP BY d.name ORDER BY avg_salary DESC LIMIT 1;",
+        "exact_match": false,
+        "execution_match": false,
+        "structural_similarity": 1.0,
+        "hallucinations": [
+          "Unknown identifier: department",
+          "Unknown identifier: avg_salary",
+          "Unknown identifier: avg_salary"
+        ],
+        "latency_ms": 10518.97,
+        "error": null
+      },
+      {
+        "id": "eval_005",
+        "question": "Show me products with low stock",
+        "difficulty": "easy",
+        "category": "data_query",
+        "expected_sql": "SELECT name, stock_quantity FROM products WHERE stock_quantity < 100 ORDER BY stock_quantity ASC",
+        "generated_sql": "SELECT id, name, category, price, stock_quantity FROM products WHERE stock_quantity < 100 LIMIT 100;",
+        "exact_match": false,
+        "execution_match": false,
+        "structural_similarity": 0.6,
+        "hallucinations": [],
+        "latency_ms": 12079.62,
+        "error": null
+      },
+      {
+        "id": "eval_006",
+        "question": "How many employees are in each department?",
+        "difficulty": "medium",
+        "category": "aggregation",
+        "expected_sql": "SELECT d.name as department, COUNT(e.id) as employee_count FROM employees e JOIN departments d ON e.department_id = d.id GROUP BY d.name",
+        "generated_sql": "SELECT d.name AS department, COUNT(e.id) AS employee_count FROM employees e JOIN departments d ON e.department_id = d.id GROUP BY d.name LIMIT 100;",
+        "exact_match": false,
+        "execution_match": true,
+        "structural_similarity": 0.8,
+        "hallucinations": [
+          "Unknown identifier: department",
+          "Unknown identifier: employee_count"
+        ],
+        "latency_ms": 12105.03,
+        "error": null
+      },
+      {
+        "id": "eval_007",
+        "question": "List all customers from North America",
+        "difficulty": "easy",
+        "category": "data_query",
+        "expected_sql": "SELECT name, company, join_date FROM customers WHERE region = 'North America'",
+        "generated_sql": "SELECT * FROM customers WHERE region = 'North America' LIMIT 100;",
+        "exact_match": false,
+        "execution_match": false,
+        "structural_similarity": 0.6,
+        "hallucinations": [],
+        "latency_ms": 11736.74,
+        "error": null
+      },
+      {
+        "id": "eval_008",
+        "question": "Who are the top 3 salespeople by total revenue?",
+        "difficulty": "hard",
+        "category": "aggregation",
+        "expected_sql": "SELECT e.name, SUM(s.total_amount) as total_revenue FROM sales s JOIN employees e ON s.employee_id = e.id GROUP BY e.name ORDER BY total_revenue DESC LIMIT 3",
+        "generated_sql": "SELECT e.name AS salesperson, SUM(s.total_amount) AS total_revenue FROM sales s JOIN employees e ON s.employee_id = e.id GROUP BY e.name ORDER BY total_revenue DESC LIMIT 3;",
+        "exact_match": false,
+        "execution_match": false,
+        "structural_similarity": 1.0,
+        "hallucinations": [
+          "Unknown identifier: salesperson",
+          "Unknown identifier: total_revenue",
+          "Unknown identifier: total_revenue"
+        ],
+        "latency_ms": 12665.57,
+        "error": null
+      },
+      {
+        "id": "eval_009",
+        "question": "What is the most expensive product?",
+        "difficulty": "easy",
+        "category": "data_query",
+        "expected_sql": "SELECT name, price FROM products ORDER BY price DESC LIMIT 1",
+        "generated_sql": "SELECT name, MAX(price) AS max_price FROM products LIMIT 1;",
+        "exact_match": false,
+        "execution_match": false,
+        "structural_similarity": 0.75,
+        "hallucinations": [
+          "Unknown identifier: max_price"
+        ],
+        "latency_ms": 8325.49,
+        "error": "Database error: (pymysql.err.OperationalError) (1140, \"In aggregated query without GROUP BY, expression #1 of SELECT list contains nonaggregated column 'chatbot.products.name'; this is incompatible with sql_mode=only_full_group_by\")\n[SQL: SELECT name, MAX(price) AS max_price FROM products LIMIT 1;]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)"
+      },
+      {
+        "id": "eval_010",
+        "question": "Show monthly sales trends",
+        "difficulty": "medium",
+        "category": "aggregation",
+        "expected_sql": "SELECT DATE_FORMAT(sale_date, '%Y-%m') as month, SUM(total_amount) as revenue FROM sales GROUP BY month ORDER BY month",
+        "generated_sql": "SELECT DATE_FORMAT(s.sale_date, '%Y-%m') AS month, SUM(s.total_amount) AS total_revenue FROM sales s GROUP BY month ORDER BY month ASC LIMIT 100;",
+        "exact_match": false,
+        "execution_match": false,
+        "structural_similarity": 0.8,
+        "hallucinations": [
+          "Unknown identifier: total_revenue"
+        ],
+        "latency_ms": 14969.66,
+        "error": null
+      },
+      {
+        "id": "eval_011",
+        "question": "Which product category generates the most revenue?",
+        "difficulty": "medium",
+        "category": "aggregation",
+        "expected_sql": "SELECT p.category, SUM(s.total_amount) as revenue FROM sales s JOIN products p ON s.product_id = p.id GROUP BY p.category ORDER BY revenue DESC",
+        "generated_sql": "SELECT p.category, SUM(s.total_amount) AS revenue FROM sales s JOIN products p ON s.product_id = p.id GROUP BY p.category ORDER BY revenue DESC LIMIT 1;",
+        "exact_match": false,
+        "execution_match": false,
+        "structural_similarity": 0.8333333333333334,
+        "hallucinations": [
+          "Unknown identifier: revenue",
+          "Unknown identifier: revenue"
+        ],
+        "latency_ms": 11450.33,
+        "error": null
+      },
+      {
+        "id": "eval_012",
+        "question": "List employees hired in the last year",
+        "difficulty": "easy",
+        "category": "data_query",
+        "expected_sql": "SELECT name, hire_date, role FROM employees WHERE hire_date >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)",
+        "generated_sql": "SELECT name, email, hire_date FROM employees WHERE hire_date >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR) LIMIT 100;",
+        "exact_match": false,
+        "execution_match": false,
+        "structural_similarity": 0.75,
+        "hallucinations": [
+          "Unknown identifier: email"
+        ],
+        "latency_ms": 11605.75,
+        "error": null
+      },
+      {
+        "id": "eval_013",
+        "question": "Compare sales between North America and Europe",
+        "difficulty": "hard",
+        "category": "comparison",
+        "expected_sql": "SELECT c.region, COUNT(s.sale_id) as num_sales, SUM(s.total_amount) as total_revenue FROM sales s JOIN customers c ON s.customer_id = c.id WHERE c.region IN ('North America', 'Europe') GROUP BY c.region",
+        "generated_sql": "SELECT c.region, SUM(s.total_amount) AS total_sales FROM sales s JOIN customers c ON s.customer_id = c.id WHERE c.region IN ('North America', 'Europe') GROUP BY c.region ORDER BY total_sales DESC LIMIT 100;",
+        "exact_match": false,
+        "execution_match": false,
+        "structural_similarity": 0.7142857142857143,
+        "hallucinations": [
+          "Unknown identifier: total_sales",
+          "Unknown identifier: total_sales"
+        ],
+        "latency_ms": 12970.06,
+        "error": null
+      },
+      {
+        "id": "eval_014",
+        "question": "Show departments and their total budget",
+        "difficulty": "easy",
+        "category": "data_query",
+        "expected_sql": "SELECT name, budget, location FROM departments ORDER BY budget DESC",
+        "generated_sql": "SELECT name AS department, SUM(budget) AS total_budget FROM departments GROUP BY name LIMIT 100;",
+        "exact_match": false,
+        "execution_match": false,
+        "structural_similarity": 0.4,
+        "hallucinations": [
+          "Unknown identifier: department",
+          "Unknown identifier: total_budget"
+        ],
+        "latency_ms": 11970.08,
+        "error": null
+      },
+      {
+        "id": "eval_015",
+        "question": "What is the average order value?",
+        "difficulty": "easy",
+        "category": "aggregation",
+        "expected_sql": "SELECT AVG(total_amount) as avg_order_value FROM sales",
+        "generated_sql": "SELECT AVG(total_amount) AS average_order_value FROM sales LIMIT 100;",
+        "exact_match": false,
+        "execution_match": false,
+        "structural_similarity": 0.6666666666666666,
+        "hallucinations": [
+          "Unknown identifier: average_order_value"
+        ],
+        "latency_ms": 9730.8,
+        "error": null
+      },
+      {
+        "id": "eval_016",
+        "question": "Which customers have made the most purchases?",
+        "difficulty": "hard",
+        "category": "aggregation",
+        "expected_sql": "SELECT c.name, c.company, COUNT(s.sale_id) as purchase_count, SUM(s.total_amount) as total_spent FROM sales s JOIN customers c ON s.customer_id = c.id GROUP BY c.id, c.name, c.company ORDER BY purchase_count DESC LIMIT 10",
+        "generated_sql": "SELECT c.name, COUNT(s.id) AS purchase_count FROM customers c JOIN sales s ON c.id = s.customer_id GROUP BY c.name ORDER BY purchase_count DESC LIMIT 100;",
+        "exact_match": false,
+        "execution_match": false,
+        "structural_similarity": 1.0,
+        "hallucinations": [
+          "Unknown identifier: purchase_count",
+          "Unknown identifier: purchase_count"
+        ],
+        "latency_ms": 13393.7,
+        "error": null
+      },
+      {
+        "id": "eval_017",
+        "question": "Show all managers and their salaries",
+        "difficulty": "easy",
+        "category": "data_query",
+        "expected_sql": "SELECT name, salary, department_id FROM employees WHERE role LIKE '%Manager%' OR role LIKE '%Director%' ORDER BY salary DESC",
+        "generated_sql": "SELECT name, salary FROM employees WHERE role = 'Manager' LIMIT 100;",
+        "exact_match": false,
+        "execution_match": false,
+        "structural_similarity": 0.6,
+        "hallucinations": [],
+        "latency_ms": 12007.69,
+        "error": null
+      },
+      {
+        "id": "eval_018",
+        "question": "What percentage of total sales comes from each region?",
+        "difficulty": "hard",
+        "category": "aggregation",
+        "expected_sql": "SELECT c.region, SUM(s.total_amount) as revenue, ROUND(SUM(s.total_amount) * 100.0 / (SELECT SUM(total_amount) FROM sales), 2) as percentage FROM sales s JOIN customers c ON s.customer_id = c.id GROUP BY c.region ORDER BY percentage DESC",
+        "generated_sql": "SELECT c.region, (SUM(s.total_amount) / (SELECT SUM(total_amount) FROM sales)) * 100 AS percentage_of_total_sales FROM sales s JOIN customers c ON s.customer_id = c.id GROUP BY c.region ORDER BY percentage_of_total_sales DESC LIMIT 100;",
+        "exact_match": false,
+        "execution_match": false,
+        "structural_similarity": 0.8333333333333334,
+        "hallucinations": [
+          "Unknown identifier: percentage_of_total_sales",
+          "Unknown identifier: percentage_of_total_sales"
+        ],
+        "latency_ms": 13610.37,
+        "error": null
+      },
+      {
+        "id": "eval_019",
+        "question": "Find products that have never been sold",
+        "difficulty": "hard",
+        "category": "data_query",
+        "expected_sql": "SELECT p.name, p.category, p.price FROM products p LEFT JOIN sales s ON p.id = s.product_id WHERE s.sale_id IS NULL",
+        "generated_sql": "SELECT p.id, p.name, p.category, p.price, p.stock_quantity FROM products p LEFT JOIN sales s ON p.id = s.product_id WHERE s.product_id IS NULL LIMIT 100;",
+        "exact_match": false,
+        "execution_match": false,
+        "structural_similarity": 0.8,
+        "hallucinations": [],
+        "latency_ms": 11628.35,
+        "error": null
+      },
+      {
+        "id": "eval_020",
+        "question": "Show the salary distribution across roles",
+        "difficulty": "medium",
+        "category": "aggregation",
+        "expected_sql": "SELECT role, COUNT(*) as count, AVG(salary) as avg_salary, MIN(salary) as min_salary, MAX(salary) as max_salary FROM employees GROUP BY role",
+        "generated_sql": "SELECT role, COUNT(*) AS number_of_employees, MIN(salary) AS min_salary, MAX(salary) AS max_salary, AVG(salary) AS avg_salary FROM employees GROUP BY role ORDER BY avg_salary DESC LIMIT 100;",
+        "exact_match": false,
+        "execution_match": false,
+        "structural_similarity": 0.6,
+        "hallucinations": [
+          "Unknown identifier: number_of_employees",
+          "Unknown identifier: min_salary",
+          "Unknown identifier: max_salary",
+          "Unknown identifier: avg_salary",
+          "Unknown identifier: avg_salary"
+        ],
+        "latency_ms": 16045.02,
+        "error": null
+      },
+      {
+        "id": "eval_021",
+        "question": "Show all employees",
+        "difficulty": "easy",
+        "category": "data_query",
+        "expected_sql": "SELECT * FROM employees LIMIT 100",
+        "generated_sql": "SELECT * FROM employees LIMIT 100;",
+        "exact_match": true,
+        "execution_match": true,
+        "structural_similarity": 1.0,
+        "hallucinations": [],
+        "latency_ms": 10168.34,
+        "error": null
+      },
+      {
+        "id": "eval_022",
+        "question": "How many products do we have in each category?",
+        "difficulty": "easy",
+        "category": "aggregation",
+        "expected_sql": "SELECT category, COUNT(*) as product_count FROM products GROUP BY category ORDER BY product_count DESC",
+        "generated_sql": "SELECT category, COUNT(*) AS product_count FROM products GROUP BY category LIMIT 100;",
+        "exact_match": false,
+        "execution_match": true,
+        "structural_similarity": 0.6,
+        "hallucinations": [
+          "Unknown identifier: product_count"
+        ],
+        "latency_ms": 12206.88,
+        "error": null
+      },
+      {
+        "id": "eval_023",
+        "question": "What are the top selling products by quantity?",
+        "difficulty": "medium",
+        "category": "aggregation",
+        "expected_sql": "SELECT p.name, SUM(s.quantity) as total_sold FROM sales s JOIN products p ON s.product_id = p.id GROUP BY p.name ORDER BY total_sold DESC LIMIT 10",
+        "generated_sql": "SELECT p.name AS product_name, SUM(s.quantity) AS total_quantity_sold FROM sales s JOIN products p ON s.product_id = p.id GROUP BY p.name ORDER BY total_quantity_sold DESC LIMIT 100;",
+        "exact_match": false,
+        "execution_match": false,
+        "structural_similarity": 1.0,
+        "hallucinations": [
+          "Unknown identifier: product_name",
+          "Unknown identifier: total_quantity_sold",
+          "Unknown identifier: total_quantity_sold"
+        ],
+        "latency_ms": 13772.47,
+        "error": null
+      },
+      {
+        "id": "eval_024",
+        "question": "Show me employees who earn more than 80000",
+        "difficulty": "easy",
+        "category": "data_query",
+        "expected_sql": "SELECT name, salary, department_id FROM employees WHERE salary > 80000 ORDER BY salary DESC",
+        "generated_sql": "SELECT name, salary FROM employees WHERE salary > 80000 LIMIT 100;",
+        "exact_match": false,
+        "execution_match": false,
+        "structural_similarity": 0.6,
+        "hallucinations": [],
+        "latency_ms": 11082.64,
+        "error": null
+      },
+      {
+        "id": "eval_025",
+        "question": "What is the revenue per employee?",
+        "difficulty": "medium",
+        "category": "aggregation",
+        "expected_sql": "SELECT e.name, SUM(s.total_amount) as revenue FROM employees e LEFT JOIN sales s ON e.id = s.employee_id GROUP BY e.id, e.name ORDER BY revenue DESC",
+        "generated_sql": "SELECT e.name AS employee_name, SUM(s.total_amount) AS revenue FROM employees e LEFT JOIN sales s ON e.id = s.employee_id GROUP BY e.name ORDER BY revenue DESC LIMIT 100;",
+        "exact_match": false,
+        "execution_match": false,
+        "structural_similarity": 0.8333333333333334,
+        "hallucinations": [
+          "Unknown identifier: employee_name",
+          "Unknown identifier: revenue",
+          "Unknown identifier: revenue"
+        ],
+        "latency_ms": 14683.83,
+        "error": null
+      },
+      {
+        "id": "eval_026",
+        "question": "Show customers who joined this year",
+        "difficulty": "easy",
+        "category": "data_query",
+        "expected_sql": "SELECT name, company, region, join_date FROM customers WHERE YEAR(join_date) = YEAR(CURDATE()) ORDER BY join_date DESC",
+        "generated_sql": "SELECT name, company, region, join_date FROM customers WHERE YEAR(join_date) = YEAR(CURDATE()) LIMIT 100;",
+        "exact_match": false,
+        "execution_match": true,
+        "structural_similarity": 0.6666666666666666,
+        "hallucinations": [
+          "Unknown identifier: year",
+          "Unknown identifier: year"
+        ],
+        "latency_ms": 11946.15,
+        "error": null
+      },
+      {
+        "id": "eval_027",
+        "question": "Which department has the most employees?",
+        "difficulty": "medium",
+        "category": "aggregation",
+        "expected_sql": "SELECT d.name as department, COUNT(e.id) as employee_count FROM departments d JOIN employees e ON d.id = e.department_id GROUP BY d.name ORDER BY employee_count DESC LIMIT 1",
+        "generated_sql": "SELECT d.name AS department, COUNT(e.id) AS employee_count FROM employees e JOIN departments d ON e.department_id = d.id GROUP BY d.name ORDER BY employee_count DESC LIMIT 1;",
+        "exact_match": false,
+        "execution_match": true,
+        "structural_similarity": 1.0,
+        "hallucinations": [
+          "Unknown identifier: department",
+          "Unknown identifier: employee_count",
+          "Unknown identifier: employee_count"
+        ],
+        "latency_ms": 10462.56,
+        "error": null
+      },
+      {
+        "id": "eval_028",
+        "question": "Show quarterly sales for this year",
+        "difficulty": "medium",
+        "category": "aggregation",
+        "expected_sql": "SELECT QUARTER(sale_date) as quarter, SUM(total_amount) as revenue, COUNT(*) as num_sales FROM sales WHERE YEAR(sale_date) = YEAR(CURDATE()) GROUP BY quarter ORDER BY quarter",
+        "generated_sql": "SELECT QUARTER(s.sale_date) AS quarter, SUM(s.total_amount) AS total_sales FROM sales s WHERE YEAR(s.sale_date) = YEAR(CURDATE()) GROUP BY QUARTER(s.sale_date) ORDER BY quarter LIMIT 1000;",
+        "exact_match": false,
+        "execution_match": false,
+        "structural_similarity": 0.8333333333333334,
+        "hallucinations": [
+          "Unknown identifier: quarter",
+          "Unknown identifier: total_sales",
+          "Unknown identifier: year",
+          "Unknown identifier: year",
+          "Unknown identifier: quarter"
+        ],
+        "latency_ms": 11739.48,
+        "error": null
+      },
+      {
+        "id": "eval_029",
+        "question": "Find the average salary by department ranked highest to lowest",
+        "difficulty": "medium",
+        "category": "aggregation",
+        "expected_sql": "SELECT d.name as department, AVG(e.salary) as avg_salary, COUNT(e.id) as headcount FROM employees e JOIN departments d ON e.department_id = d.id GROUP BY d.name ORDER BY avg_salary DESC",
+        "generated_sql": "SELECT d.name AS department, AVG(e.salary) AS avg_salary FROM employees e JOIN departments d ON e.department_id = d.id GROUP BY d.name ORDER BY avg_salary DESC LIMIT 100;",
+        "exact_match": false,
+        "execution_match": false,
+        "structural_similarity": 0.8333333333333334,
+        "hallucinations": [
+          "Unknown identifier: department",
+          "Unknown identifier: avg_salary",
+          "Unknown identifier: avg_salary"
+        ],
+        "latency_ms": 13173.39,
+        "error": null
+      },
+      {
+        "id": "eval_030",
+        "question": "Show the top 10 most recent sales",
+        "difficulty": "medium",
+        "category": "data_query",
+        "expected_sql": "SELECT s.sale_id, e.name as employee, s.total_amount, s.sale_date FROM sales s JOIN employees e ON s.employee_id = e.id ORDER BY s.sale_date DESC LIMIT 10",
+        "generated_sql": "SELECT * FROM sales ORDER BY sale_date DESC LIMIT 10;",
+        "exact_match": false,
+        "execution_match": false,
+        "structural_similarity": 0.8,
+        "hallucinations": [],
+        "latency_ms": 11474.94,
+        "error": null
+      },
+      {
+        "id": "eval_031",
+        "question": "What is the total number of customers per region?",
+        "difficulty": "easy",
+        "category": "aggregation",
+        "expected_sql": "SELECT region, COUNT(*) as customer_count FROM customers GROUP BY region ORDER BY customer_count DESC",
+        "generated_sql": "SELECT region, COUNT(*) AS total_customers FROM customers GROUP BY region ORDER BY total_customers DESC LIMIT 100;",
+        "exact_match": false,
+        "execution_match": false,
+        "structural_similarity": 0.8,
+        "hallucinations": [
+          "Unknown identifier: total_customers",
+          "Unknown identifier: total_customers"
+        ],
+        "latency_ms": 12073.11,
+        "error": null
+      },
+      {
+        "id": "eval_032",
+        "question": "Show products priced between 50 and 200",
+        "difficulty": "easy",
+        "category": "data_query",
+        "expected_sql": "SELECT name, category, price FROM products WHERE price BETWEEN 50 AND 200 ORDER BY price ASC",
+        "generated_sql": "SELECT * FROM products WHERE price BETWEEN 50 AND 200 LIMIT 100;",
+        "exact_match": false,
+        "execution_match": true,
+        "structural_similarity": 0.6,
+        "hallucinations": [],
+        "latency_ms": 8706.1,
+        "error": null
+      },
+      {
+        "id": "eval_033",
+        "question": "Which employees have made no sales?",
+        "difficulty": "hard",
+        "category": "data_query",
+        "expected_sql": "SELECT e.name, e.department_id, e.role FROM employees e LEFT JOIN sales s ON e.id = s.employee_id WHERE s.sale_id IS NULL",
+        "generated_sql": "SELECT name, email FROM employees WHERE id NOT IN (SELECT employee_id FROM sales) LIMIT 1000;",
+        "exact_match": false,
+        "execution_match": false,
+        "structural_similarity": 0.6,
+        "hallucinations": [
+          "Unknown identifier: email"
+        ],
+        "latency_ms": 7968.19,
+        "error": null
+      },
+      {
+        "id": "eval_034",
+        "question": "Show the running total of sales by date",
+        "difficulty": "hard",
+        "category": "aggregation",
+        "expected_sql": "SELECT sale_date, SUM(total_amount) as daily_total, SUM(SUM(total_amount)) OVER (ORDER BY sale_date) as running_total FROM sales GROUP BY sale_date ORDER BY sale_date",
+        "generated_sql": "SELECT sale_date, SUM(total_amount) OVER (ORDER BY sale_date) AS running_total FROM sales ORDER BY sale_date LIMIT 100;",
+        "exact_match": false,
+        "execution_match": false,
+        "structural_similarity": 0.6,
+        "hallucinations": [
+          "Unknown identifier: running_total"
+        ],
+        "latency_ms": 12791.48,
+        "error": null
+      },
+      {
+        "id": "eval_035",
+        "question": "Find departments where average salary exceeds 70000",
+        "difficulty": "medium",
+        "category": "aggregation",
+        "expected_sql": "SELECT d.name as department, AVG(e.salary) as avg_salary FROM employees e JOIN departments d ON e.department_id = d.id GROUP BY d.name HAVING AVG(e.salary) > 70000",
+        "generated_sql": "SELECT d.name AS department, AVG(e.salary) AS avg_salary FROM employees e JOIN departments d ON e.department_id = d.id GROUP BY d.name HAVING AVG(e.salary) > 70000 LIMIT 100;",
+        "exact_match": false,
+        "execution_match": true,
+        "structural_similarity": 0.8333333333333334,
+        "hallucinations": [
+          "Unknown identifier: department",
+          "Unknown identifier: avg_salary"
+        ],
+        "latency_ms": 13478.67,
+        "error": null
+      }
+    ]
+  }
+}

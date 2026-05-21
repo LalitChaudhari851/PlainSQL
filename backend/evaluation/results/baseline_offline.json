@@ -1,0 +1,146 @@
+{
+  "total_queries": 10,
+  "exact_match_rate": 30.0,
+  "execution_accuracy": 30.0,
+  "avg_structural_similarity": 0.93,
+  "total_hallucinations": 9,
+  "avg_latency_ms": 0,
+  "eval_type": "offline_simulated",
+  "results": [
+    {
+      "id": "sim_001",
+      "question": "Show top 5 employees by salary",
+      "expected_sql": "SELECT name, salary FROM employees ORDER BY salary DESC LIMIT 5",
+      "generated_sql": "SELECT name, salary FROM employees ORDER BY salary DESC LIMIT 5",
+      "exact_match": true,
+      "execution_match": true,
+      "structural_similarity": 1.0,
+      "hallucinations": [],
+      "difficulty": "easy",
+      "note": "Exact match \u2014 model produces identical SQL"
+    },
+    {
+      "id": "sim_002",
+      "question": "Show top 5 employees by salary",
+      "expected_sql": "SELECT name, salary FROM employees ORDER BY salary DESC LIMIT 5",
+      "generated_sql": "SELECT e.name, e.salary FROM employees e ORDER BY e.salary DESC LIMIT 5",
+      "exact_match": false,
+      "execution_match": false,
+      "structural_similarity": 1.0,
+      "hallucinations": [],
+      "difficulty": "easy",
+      "note": "Alias variation \u2014 semantically equivalent, not exact match"
+    },
+    {
+      "id": "sim_003",
+      "question": "Total sales revenue by region",
+      "expected_sql": "SELECT c.region, SUM(s.total_amount) as revenue FROM sales s JOIN customers c ON s.customer_id = c.id GROUP BY c.region",
+      "generated_sql": "SELECT c.region, SUM(s.total_amount) AS total_revenue FROM sales s INNER JOIN customers c ON s.customer_id = c.id GROUP BY c.region ORDER BY total_revenue DESC",
+      "exact_match": false,
+      "execution_match": false,
+      "structural_similarity": 0.8,
+      "hallucinations": [
+        "Unknown identifier: total_revenue",
+        "Unknown identifier: total_revenue"
+      ],
+      "difficulty": "medium",
+      "note": "Structural equivalent \u2014 different alias, extra ORDER BY, INNER vs implicit JOIN"
+    },
+    {
+      "id": "sim_004",
+      "question": "Which department has the highest average salary?",
+      "expected_sql": "SELECT d.name, AVG(e.salary) as avg_salary FROM employees e JOIN departments d ON e.department_id = d.id GROUP BY d.name ORDER BY avg_salary DESC LIMIT 1",
+      "generated_sql": "SELECT d.name, AVG(e.salary) as avg_salary FROM employees e JOIN departments d ON e.department_id = d.id GROUP BY d.name ORDER BY avg_salary DESC LIMIT 1",
+      "exact_match": true,
+      "execution_match": true,
+      "structural_similarity": 1.0,
+      "hallucinations": [
+        "Unknown identifier: avg_salary",
+        "Unknown identifier: avg_salary"
+      ],
+      "difficulty": "medium",
+      "note": "Exact match on complex query"
+    },
+    {
+      "id": "sim_005",
+      "question": "How many employees are in each department?",
+      "expected_sql": "SELECT d.name as department, COUNT(e.id) as employee_count FROM employees e JOIN departments d ON e.department_id = d.id GROUP BY d.name",
+      "generated_sql": "SELECT d.name, COUNT(*) as cnt FROM departments d LEFT JOIN employees e ON d.id = e.department_id GROUP BY d.name",
+      "exact_match": false,
+      "execution_match": false,
+      "structural_similarity": 1.0,
+      "hallucinations": [
+        "Unknown identifier: cnt"
+      ],
+      "difficulty": "medium",
+      "note": "Different join direction, COUNT(*) vs COUNT(e.id), different alias"
+    },
+    {
+      "id": "sim_006",
+      "question": "Show products with low stock",
+      "expected_sql": "SELECT name, stock_quantity FROM products WHERE stock_quantity < 100 ORDER BY stock_quantity ASC",
+      "generated_sql": "SELECT name, stock_quantity FROM products WHERE stock_quantity < 50 ORDER BY stock_quantity",
+      "exact_match": false,
+      "execution_match": false,
+      "structural_similarity": 1.0,
+      "hallucinations": [],
+      "difficulty": "easy",
+      "note": "Threshold difference \u2014 model chose 50 instead of 100"
+    },
+    {
+      "id": "sim_007",
+      "question": "What is the total sales revenue?",
+      "expected_sql": "SELECT SUM(total_amount) as total_revenue FROM sales",
+      "generated_sql": "SELECT SUM(total_amount) as total_revenue FROM sales",
+      "exact_match": true,
+      "execution_match": true,
+      "structural_similarity": 1.0,
+      "hallucinations": [
+        "Unknown identifier: total_revenue"
+      ],
+      "difficulty": "easy",
+      "note": "Exact match on simple aggregation"
+    },
+    {
+      "id": "sim_008",
+      "question": "Find products that have never been sold",
+      "expected_sql": "SELECT p.name, p.category, p.price FROM products p LEFT JOIN sales s ON p.id = s.product_id WHERE s.sale_id IS NULL",
+      "generated_sql": "SELECT p.name, p.category, p.price FROM products p WHERE p.id NOT IN (SELECT DISTINCT product_id FROM sales)",
+      "exact_match": false,
+      "execution_match": false,
+      "structural_similarity": 0.75,
+      "hallucinations": [],
+      "difficulty": "hard",
+      "note": "Different approach (NOT IN subquery vs LEFT JOIN IS NULL) \u2014 structurally different but semantically equivalent"
+    },
+    {
+      "id": "sim_009",
+      "question": "Show the running total of sales by date",
+      "expected_sql": "SELECT sale_date, SUM(total_amount) as daily_total, SUM(SUM(total_amount)) OVER (ORDER BY sale_date) as running_total FROM sales GROUP BY sale_date ORDER BY sale_date",
+      "generated_sql": "SELECT sale_date, total_amount, SUM(total_amount) OVER (ORDER BY sale_date ROWS UNBOUNDED PRECEDING) as running_total FROM sales ORDER BY sale_date",
+      "exact_match": false,
+      "execution_match": false,
+      "structural_similarity": 0.75,
+      "hallucinations": [
+        "Unknown identifier: running_total"
+      ],
+      "difficulty": "hard",
+      "note": "Window function variation \u2014 different granularity (per-row vs per-day)"
+    },
+    {
+      "id": "sim_010",
+      "question": "Compare sales between North America and Europe",
+      "expected_sql": "SELECT c.region, COUNT(s.sale_id) as num_sales, SUM(s.total_amount) as total_revenue FROM sales s JOIN customers c ON s.customer_id = c.id WHERE c.region IN ('North America', 'Europe') GROUP BY c.region",
+      "generated_sql": "SELECT c.region, COUNT(*) as sale_count, SUM(s.total_amount) as revenue FROM sales s JOIN customers c ON s.customer_id = c.id WHERE c.region IN ('North America', 'Europe') GROUP BY c.region",
+      "exact_match": false,
+      "execution_match": false,
+      "structural_similarity": 1.0,
+      "hallucinations": [
+        "Unknown identifier: sale_count",
+        "Unknown identifier: revenue"
+      ],
+      "difficulty": "hard",
+      "note": "Minor variation \u2014 COUNT(*) vs COUNT(s.sale_id), different alias"
+    }
+  ]
+}

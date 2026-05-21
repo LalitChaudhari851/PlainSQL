@@ -1,0 +1,12 @@
+node_modules
+dist
+.env
+.venv
+venv
+__pycache__
+*.pyc
+.git
+.github
+chroma_db
+mysql_data
+redis_data

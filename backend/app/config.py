@@ -40,8 +40,12 @@ class Settings(BaseSettings):
     HUGGINGFACEHUB_API_TOKEN: Optional[str] = None
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
+    GROQ_API_KEY: Optional[str] = None
+    GROQ_MODEL_PRIMARY: str = "llama-3.3-70b-versatile"
+    GROQ_MODEL_FAST: str = "llama-3.1-8b-instant"
+    GROQ_BASE_URL: str = "https://api.groq.com/openai/v1"
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    DEFAULT_LLM_PROVIDER: str = Field(default="huggingface", description="huggingface | openai | anthropic | ollama")
+    DEFAULT_LLM_PROVIDER: str = Field(default="groq", description="groq | huggingface | openai | anthropic | ollama")
     DEFAULT_MODEL: str = "Qwen/Qwen2.5-Coder-32B-Instruct"
 
     # ── RAG ──────────────────────────────────────────────

@@ -97,6 +97,15 @@ class DatabasePool:
     def execute_query(self, query: str, params: Optional[dict] = None) -> list[dict]:
         """Execute a read-only query and return results as list of dicts."""
         with self._engine.connect() as conn:
+            # Enforce statement-level timeout (milliseconds) to prevent
+            # runaway queries from blocking the thread pool forever.
+            # The socket read_timeout only handles network stalls, not slow SQL.
+            timeout_ms = self.query_timeout * 1000
+            try:
+                conn.execute(text(f"SET SESSION max_execution_time = {timeout_ms}"))
+            except Exception:
+                pass  # Non-critical — older MySQL versions may not support this
+
             if params:
                 result = conn.execute(text(query), params)
             else:

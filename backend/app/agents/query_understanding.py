@@ -13,6 +13,15 @@ from app.prompts.registry import get_prompt_registry
 
 logger = structlog.get_logger()
 
+# ── Complexity → retrieval_top_k mapping ────────────────
+# Simple queries need fewer schema docs (less noise, faster).
+# Complex queries need more context to join multiple tables correctly.
+_COMPLEXITY_TOP_K: dict[str, int] = {
+    "simple": 3,
+    "moderate": 5,
+    "complex": 8,
+}
+
 
 def _is_chat_input(query_lower: str) -> bool:
     """Backward-compatible wrapper for the old chat fast-path helper."""
@@ -51,6 +60,7 @@ def query_understanding_node(state: AgentState, llm_router) -> dict:
             "route_intent": "chat",
             "entities": [],
             "complexity": classification.complexity,
+            "retrieval_top_k": _COMPLEXITY_TOP_K.get(classification.complexity, 5),
             "friendly_message": build_chat_response(user_query),
         }
 
@@ -61,6 +71,7 @@ def query_understanding_node(state: AgentState, llm_router) -> dict:
             "route_intent": "chat",
             "entities": _extract_entities_basic(user_query),
             "complexity": "simple",
+            "retrieval_top_k": 5,  # default — ambiguous queries don't reach schema retrieval
             "friendly_message": _build_ambiguous_response(user_query),
         }
 
@@ -71,53 +82,36 @@ def query_understanding_node(state: AgentState, llm_router) -> dict:
             "route_intent": "meta_query",
             "entities": _extract_entities_basic(user_query),
             "complexity": classification.complexity,
+            "retrieval_top_k": _COMPLEXITY_TOP_K.get(classification.complexity, 5),
         }
 
-    # Optional LLM refinement for SQL sub-intent only. The chat/sql decision has
-    # already been made.
-    try:
-        prompt_template = get_prompt_registry().get("query_classification")
-        messages = prompt_template.render(user_query=user_query)
-        response = llm_router.generate(messages, model_preference="fast")
+    # ── Heuristic-only classification (no LLM call) ──────────
+    # The rule-based classifier already determines the correct SQL sub-intent.
+    # An LLM refinement call was previously made here but added ~800ms of latency
+    # without improving downstream SQL generation quality — all SQL intents
+    # follow the same pipeline path (retrieve → generate → validate → execute).
+    route = classification.route_intent
+    entities = _extract_entities_basic(user_query)
+    complexity = classification.complexity
+    top_k = _COMPLEXITY_TOP_K.get(complexity, 5)
 
-        clean_json = re.sub(r"```json|```", "", response).strip()
-        parsed = json.loads(clean_json)
+    logger.info(
+        "intent_classified",
+        intent="sql",
+        route_intent=route,
+        entities=entities,
+        complexity=complexity,
+        retrieval_top_k=top_k,
+        method="heuristic_fast",
+    )
 
-        intent = parsed.get("route_intent") or parsed.get("intent", classification.route_intent)
-        entities = parsed.get("entities", [])
-        complexity = parsed.get("complexity", classification.complexity)
-
-        # The rule-based classifier already decided this is SQL.
-        # The LLM refinement should NOT override that decision back to chat —
-        # doing so would allow prompt injection to bypass the SQL pipeline.
-        valid_intents = {"data_query", "aggregation", "comparison", "explanation"}
-        if intent not in valid_intents:
-            intent = classification.route_intent if classification.route_intent in valid_intents else "data_query"
-
-        logger.info(
-            "intent_classified",
-            intent="sql",
-            route_intent=intent,
-            entities=entities,
-            complexity=complexity,
-            method="llm",
-        )
-
-        return {
-            "intent": "sql",
-            "route_intent": intent,
-            "entities": entities,
-            "complexity": complexity,
-        }
-
-    except Exception as e:
-        logger.warning("classification_failed", error=str(e), fallback="heuristic")
-        return {
-            "intent": "sql",
-            "route_intent": classification.route_intent,
-            "entities": _extract_entities_basic(user_query),
-            "complexity": classification.complexity,
-        }
+    return {
+        "intent": "sql",
+        "route_intent": route,
+        "entities": entities,
+        "complexity": complexity,
+        "retrieval_top_k": top_k,
+    }
 
 
 def _extract_entities_basic(query: str) -> list[str]:

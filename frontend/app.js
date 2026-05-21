@@ -53,7 +53,7 @@ function saveState() {
       savedQueries: state.savedQueries,
     };
     localStorage.setItem("plainsql_state", JSON.stringify(serializable));
-  } catch {}
+  } catch { }
 }
 
 function loadState() {
@@ -67,7 +67,7 @@ function loadState() {
         state.savedQueries = saved.savedQueries;
       }
     }
-  } catch {}
+  } catch { }
   // Then hydrate from server (non-blocking)
   loadConversationsFromServer();
 }
@@ -97,7 +97,7 @@ async function loadConversationsFromServer() {
       }
       render();
     }
-  } catch {}
+  } catch { }
 }
 
 const Component = {
@@ -372,7 +372,7 @@ async function createConversationOnServer(id, title) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title }),
     });
-  } catch {}
+  } catch { }
 }
 
 async function submitPrompt(raw) {
@@ -466,11 +466,18 @@ async function submitPrompt(raw) {
               pending.streaming = false;
               render();
               break;
+            case "error":
+              // Pipeline crashed — show the error to the user
+              pending.error = chunk.error || "An unexpected error occurred.";
+              pending.pending = false;
+              pending.streaming = false;
+              render();
+              break;
             case "done":
               assembled.execution_time_ms = assembled.execution_time_ms || chunk.total_time_ms || 0;
               break;
           }
-        } catch {}
+        } catch { }
       }
     }
 
@@ -679,7 +686,7 @@ function handleClick(event) {
       writeClipboard(parts, "Response copied");
     }
   }
-   if (chartType) {
+  if (chartType) {
     const id = chartType.dataset.chartType;
     const canvas = document.getElementById(`chart-${id}`);
     if (canvas) canvas.dataset.type = chartType.dataset.type;
@@ -937,7 +944,7 @@ function wait(ms) {
 
 document.addEventListener("click", handleClick);
 document.addEventListener("change", handleChange);
-document.addEventListener("keydown", function(e) {
+document.addEventListener("keydown", function (e) {
   if ((e.ctrlKey || e.metaKey) && e.key === "k") {
     e.preventDefault();
     newChat();

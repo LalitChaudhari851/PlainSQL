@@ -176,3 +176,160 @@ class OllamaProvider(BaseLLMProvider):
     @property
     def name(self) -> str:
         return "ollama"
+
+
+class GroqProvider(BaseLLMProvider):
+    """
+    Groq LPU Inference provider — ultra-low-latency LLM inference.
+
+    Uses the OpenAI-compatible SDK pointed at Groq's API endpoint.
+    Supports both sync and native async generation + streaming.
+
+    Models:
+    - llama-3.3-70b-versatile (primary — best accuracy for SQL)
+    - llama-3.1-8b-instant    (fast — intent classification, simple tasks)
+    """
+
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "llama-3.3-70b-versatile",
+        fast_model: str = "llama-3.1-8b-instant",
+        base_url: str = "https://api.groq.com/openai/v1",
+    ):
+        self.api_key = api_key
+        self.model = model
+        self.fast_model = fast_model
+        self.base_url = base_url
+        self._sync_client = None
+        self._async_client = None
+
+    def _get_sync_client(self):
+        """Lazy-init sync OpenAI client pointed at Groq."""
+        if self._sync_client is None:
+            try:
+                from openai import OpenAI
+                self._sync_client = OpenAI(
+                    api_key=self.api_key,
+                    base_url=self.base_url,
+                    timeout=30.0,
+                    max_retries=2,
+                )
+            except ImportError:
+                raise ImportError("openai package required for Groq. Run: pip install openai>=1.0")
+        return self._sync_client
+
+    def _get_async_client(self):
+        """Lazy-init async OpenAI client pointed at Groq."""
+        if self._async_client is None:
+            try:
+                from openai import AsyncOpenAI
+                self._async_client = AsyncOpenAI(
+                    api_key=self.api_key,
+                    base_url=self.base_url,
+                    timeout=30.0,
+                    max_retries=2,
+                )
+            except ImportError:
+                raise ImportError("openai package required for Groq. Run: pip install openai>=1.0")
+        return self._async_client
+
+    def generate(self, messages: list[dict], **kwargs) -> str:
+        """Synchronous generation via Groq LPU."""
+        import time
+        client = self._get_sync_client()
+        model = kwargs.pop("model_override", self.model)
+        max_tokens = kwargs.get("max_tokens", 1024)
+        temperature = kwargs.get("temperature", 0.1)
+
+        start = time.perf_counter()
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
+
+        content = response.choices[0].message.content
+
+        # Extract native token usage from Groq response
+        usage = getattr(response, "usage", None)
+        logger.info(
+            "groq_request_completed",
+            model=model,
+            latency_ms=elapsed_ms,
+            input_tokens=getattr(usage, "prompt_tokens", 0) if usage else 0,
+            output_tokens=getattr(usage, "completion_tokens", 0) if usage else 0,
+        )
+
+        return content
+
+    async def agenerate(self, messages: list[dict], **kwargs) -> str:
+        """
+        True async generation — uses httpx under the hood via openai AsyncClient.
+        No thread pool overhead.
+        """
+        import time
+        client = self._get_async_client()
+        model = kwargs.pop("model_override", self.model)
+        max_tokens = kwargs.get("max_tokens", 1024)
+        temperature = kwargs.get("temperature", 0.1)
+
+        start = time.perf_counter()
+        response = await client.chat.completions.create(
+            model=model,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
+
+        content = response.choices[0].message.content
+
+        usage = getattr(response, "usage", None)
+        logger.info(
+            "groq_async_completed",
+            model=model,
+            latency_ms=elapsed_ms,
+            input_tokens=getattr(usage, "prompt_tokens", 0) if usage else 0,
+            output_tokens=getattr(usage, "completion_tokens", 0) if usage else 0,
+        )
+
+        return content
+
+    async def astream(self, messages: list[dict], **kwargs):
+        """
+        True async streaming — yields tokens as they arrive from Groq LPU.
+        Uses native OpenAI streaming protocol.
+        """
+        client = self._get_async_client()
+        model = kwargs.pop("model_override", self.model)
+        max_tokens = kwargs.get("max_tokens", 1024)
+        temperature = kwargs.get("temperature", 0.1)
+
+        stream = await client.chat.completions.create(
+            model=model,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            stream=True,
+        )
+
+        async for chunk in stream:
+            if chunk.choices and chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
+
+    def health_check(self) -> bool:
+        """Lightweight health check — verifies API key and connectivity."""
+        try:
+            client = self._get_sync_client()
+            client.models.list()
+            return True
+        except Exception:
+            return False
+
+    @property
+    def name(self) -> str:
+        return "groq"
+

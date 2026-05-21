@@ -49,7 +49,7 @@ graph TD
 
 ### Pipeline Flow
 
-1. **Intent Classification** — Routes queries to chat handler or SQL pipeline
+1. **Intent Classification** — ML classifier (sentence-transformers + LogisticRegression) with heuristic fallback routes queries to chat handler or SQL pipeline
 2. **Schema Retrieval** — Hybrid RAG (ChromaDB vector + BM25 keyword + RRF fusion) fetches relevant schema context
 3. **SQL Generation** — LLM generates SQL using schema context with few-shot examples and chain-of-thought reasoning
 4. **SQL Validation** — Safety layer blocks destructive queries (DROP, DELETE, UPDATE), detects prompt injection, validates syntax
@@ -186,26 +186,58 @@ PlainSQL/
 
 ---
 
+## ML Intent Classifier
+
+The intent classification pipeline uses a **trained ML model** (sentence-transformers + LogisticRegression) with a heuristic fallback:
+
+```bash
+# Train the classifier (generates intent_model.joblib)
+cd backend
+python -m app.agents.models.train_classifier
+```
+
+**Architecture**: `all-MiniLM-L6-v2` (384-dim embeddings) → `LogisticRegression` (4 classes)
+
+| Class | Description | Examples |
+|---|---|---|
+| `chat` | Greetings, thanks, off-topic | "hello", "what can you do" |
+| `sql` | Data queries, aggregations | "show top 5 employees by salary" |
+| `meta_query` | Schema exploration | "what tables are in the database" |
+| `ambiguous` | Vague data-shaped queries | "show me some data" |
+
+**Hybrid strategy**: ML model is used when confidence ≥ 70%. Below that threshold, the heuristic keyword classifier takes over — ensuring zero regression risk.
+
+---
+
 ## Evaluation
 
-The evaluation pipeline measures SQL generation quality across 30+ benchmark queries:
+The evaluation pipeline measures SQL generation quality across 35 benchmark queries:
 
 | Metric | Description |
 |---|---|
 | **Exact Match** | Normalized SQL string equality |
-| **Execution Match** | Result set comparison (order-independent) |
+| **Execution Match** | Result set comparison (order-independent) — gold standard |
 | **Structural Similarity** | Clause-level comparison (SELECT, JOIN, WHERE, GROUP BY) |
 | **Hallucination Detection** | Flags references to non-existent tables/columns |
+
+### Run Offline Evaluation (no DB/LLM required)
+
+```bash
+cd backend
+python -m evaluation.run_offline_eval
+```
+
+### Run Full Evaluation (requires live DB + LLM)
 
 ```bash
 cd backend
 python -m evaluation.runner
 ```
 
-Compare two evaluation runs:
+### Compare Two Evaluation Runs
 
 ```bash
-python -m evaluation.compare results/baseline_v1.json results/baseline_v2.json
+python -m evaluation.compare results/baseline_v1.json results/latest.json
 ```
 
 ---

@@ -34,10 +34,12 @@ class AgentState(TypedDict, total=False):
     ]
     entities: list[str]                # Extracted table/column names
     complexity: Literal["simple", "moderate", "complex"]
+    retrieval_top_k: int               # How many schema docs to fetch (3=simple, 5=default, 8=complex)
 
     # ── Schema Retrieval Agent Output ────────────────────
     relevant_schema: str               # Formatted schema context for LLM
     relevant_tables: list[str]         # Table names retrieved
+    retrieval_source: str              # "rag_top_k:{n}" | "full_schema_fallback" | "meta_query" — for tracing
 
     # ── SQL Generation Agent Output ──────────────────────
     generated_sql: str                 # The SQL query

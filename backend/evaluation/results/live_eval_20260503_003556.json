@@ -1,0 +1,36 @@
+{
+  "timestamp": "2026-05-03T00:35:22.656255",
+  "dataset_size": 35,
+  "component_eval": {
+    "sql_validation": {
+      "status": "PASS",
+      "dangerous_blocked": "6/7",
+      "safe_allowed": "35/35",
+      "block_rate": 85.71428571428571,
+      "allow_rate": 100.0
+    },
+    "intent_classification": {
+      "status": "PASS",
+      "accuracy": 100.0,
+      "correct": 12,
+      "total": 12
+    },
+    "prompt_registry": {
+      "status": "PASS",
+      "templates": 3,
+      "missing": [],
+      "render_ok": 5
+    },
+    "guardrails": {
+      "status": "PASS",
+      "valid_accepted": "35/35",
+      "hallucinations_caught": "3/3"
+    },
+    "structural_metrics": {
+      "status": "PASS",
+      "avg_self_similarity": 1.0,
+      "perfect_self_match": "35/35",
+      "false_positive_hallucinations": 50
+    }
+  }
+}

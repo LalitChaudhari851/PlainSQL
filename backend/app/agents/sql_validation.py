@@ -150,11 +150,26 @@ def route_validation(state: AgentState) -> str:
 
 
 def _inject_limit(sql: str, max_rows: int = 1000) -> str:
-    """Inject LIMIT clause if not present to prevent runaway queries."""
+    """
+    Inject LIMIT clause if not present to prevent runaway queries.
+
+    Skips injection for:
+    - Queries that already have LIMIT
+    - Scalar aggregations (aggregate functions without GROUP BY) where LIMIT is meaningless
+    """
     sql_clean = sql.strip().rstrip(";")
     sql_upper = sql_clean.upper()
 
-    if "LIMIT" not in sql_upper:
-        sql_clean += f" LIMIT {max_rows}"
+    if "LIMIT" in sql_upper:
+        return sql_clean + ";"
 
+    # Don't add LIMIT to scalar aggregations — they always return 1 row
+    aggregate_fns = ("COUNT(", "SUM(", "AVG(", "MIN(", "MAX(")
+    has_aggregate = any(fn in sql_upper for fn in aggregate_fns)
+    has_group_by = "GROUP BY" in sql_upper
+
+    if has_aggregate and not has_group_by:
+        return sql_clean + ";"
+
+    sql_clean += f" LIMIT {max_rows}"
     return sql_clean + ";"
