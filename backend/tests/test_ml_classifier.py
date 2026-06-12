@@ -128,10 +128,8 @@ class TestMLClassifierIntegration:
         assert result.confidence > 0.5
 
     @pytest.mark.skipif(
-        not os.path.exists(
-            os.path.join(os.path.dirname(__file__), "..", "app", "agents", "models", "intent_model.joblib")
-        ),
-        reason="ML model not trained yet",
+        not _ML_READY,
+        reason="ML model not trained or sentence_transformers not installed",
     )
     def test_ml_classifies_meta_query(self):
         from app.agents.ml_classifier import MLIntentClassifier
