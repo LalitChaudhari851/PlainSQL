@@ -17,7 +17,6 @@ The output model is used by MLIntentClassifier in ml_classifier.py.
 
 import json
 import os
-import sys
 import numpy as np
 
 
@@ -42,7 +41,7 @@ def main():
         print(f"   - {label}: {count}")
 
     # ── Encode with sentence-transformers ────────────────
-    print(f"\n[ENCODE] Encoding with sentence-transformers/all-MiniLM-L6-v2...")
+    print("\n[ENCODE] Encoding with sentence-transformers/all-MiniLM-L6-v2...")
     from sentence_transformers import SentenceTransformer
 
     encoder = SentenceTransformer("all-MiniLM-L6-v2")
@@ -61,7 +60,7 @@ def main():
     print(f"\n[SPLIT] Train: {len(X_train)} | Test: {len(X_test)}")
 
     # ── Train LogisticRegression ────────────────────────
-    print(f"\n[TRAIN] Training LogisticRegression classifier...")
+    print("\n[TRAIN] Training LogisticRegression classifier...")
     model = LogisticRegression(
         max_iter=1000,
         C=1.0,
@@ -77,22 +76,22 @@ def main():
     accuracy = (np.array(y_pred) == np.array(y_test)).mean()
 
     print(f"\n{'='*60}")
-    print(f"  TEST SET RESULTS")
+    print("  TEST SET RESULTS")
     print(f"{'='*60}")
     print(f"   Accuracy: {accuracy:.1%}")
     print(f"\n{classification_report(y_test, y_pred)}")
 
     # ── Cross-validation ────────────────────────────────
-    print(f"[CV] 5-Fold Cross-Validation...")
+    print("[CV] 5-Fold Cross-Validation...")
     cv_scores = cross_val_score(model, embeddings, labels, cv=5, scoring="accuracy")
     print(f"   CV Accuracy: {cv_scores.mean():.1%} +/- {cv_scores.std():.1%}")
     print(f"   Fold scores: {[f'{s:.1%}' for s in cv_scores]}")
 
     # ── Confusion Matrix ────────────────────────────────
-    print(f"\n[MATRIX] Confusion Matrix:")
+    print("\n[MATRIX] Confusion Matrix:")
     cm = confusion_matrix(y_test, y_pred, labels=sorted(set(labels)))
     cm_labels = sorted(set(labels))
-    header = "          " + "  ".join(f"{l:>10}" for l in cm_labels)
+    header = "          " + "  ".join(f"{label:>10}" for label in cm_labels)
     print(header)
     for i, row in enumerate(cm):
         row_str = "  ".join(f"{v:>10}" for v in row)
@@ -106,7 +105,7 @@ def main():
     print(f"   Model size: {model_size / 1024:.1f} KB")
 
     # ── Quick inference test ────────────────────────────
-    print(f"\n[TEST] Quick inference test:")
+    print("\n[TEST] Quick inference test:")
     test_queries = [
         "hello",
         "show top 5 employees by salary",
@@ -123,7 +122,7 @@ def main():
         conf = max(probs)
         print(f"   '{query}' -> {pred} ({conf:.0%})")
 
-    print(f"\n[DONE] Training complete!")
+    print("\n[DONE] Training complete!")
     return accuracy
 
 

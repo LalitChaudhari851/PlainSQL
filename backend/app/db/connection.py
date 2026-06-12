@@ -4,7 +4,6 @@ Supports multi-tenant databases via tenant_id-based connection routing.
 """
 
 import re
-import pymysql
 from sqlalchemy import create_engine, text, event
 from sqlalchemy.pool import QueuePool
 from urllib.parse import urlparse, unquote

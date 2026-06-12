@@ -3,13 +3,10 @@ Query Understanding Agent - classifies user intent and extracts entities.
 First agent in the pipeline. Determines routing for the rest of the graph.
 """
 
-import json
-import re
 import structlog
 
 from app.agents.intent_classifier import build_chat_response, classify_intent
 from app.agents.state import AgentState
-from app.prompts.registry import get_prompt_registry
 
 logger = structlog.get_logger()
 

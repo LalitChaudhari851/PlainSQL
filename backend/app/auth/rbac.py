@@ -4,7 +4,6 @@ Three roles: admin, analyst, viewer with hierarchical permissions.
 """
 
 from enum import Enum
-from functools import wraps
 from fastapi import HTTPException, status
 import structlog
 

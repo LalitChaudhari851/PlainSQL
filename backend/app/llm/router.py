@@ -7,7 +7,6 @@ circuit breaker protection, and retry with exponential backoff.
 import time
 import threading
 import structlog
-from typing import Optional
 
 from app.llm.base import BaseLLMProvider
 from app.llm.providers import (

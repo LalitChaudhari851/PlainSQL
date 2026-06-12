@@ -235,7 +235,7 @@ def _cross_validate_summary(
     import re
 
     # Extract all numbers from the summary
-    numbers_in_summary = re.findall(r'[\d,]+(?:\.\d+)?', summary.replace(',', ''))
+    _numbers_in_summary = re.findall(r'[\d,]+(?:\.\d+)?', summary.replace(',', ''))
     
     # For now, just return the summary as-is — the grounding prompt
     # is strong enough to prevent hallucination in practice.

@@ -4,7 +4,7 @@ Tests authentication, input validation, rate limiting, and error handling.
 """
 
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 
 # ── Test Redis Client ────────────────────────────────────────
@@ -204,7 +204,7 @@ class TestAgentMetrics:
 
     def test_metrics_collector_increment(self):
         """Increment a registered counter and verify it increases."""
-        from app.observability.metrics import MetricsCollector, _PROM_AVAILABLE
+        from app.observability.metrics import MetricsCollector
         m = MetricsCollector()
         # Use a real registered metric name so Prometheus path works
         m.increment("plainsql_queries_total", {"intent": "test", "status": "success"})
@@ -215,7 +215,7 @@ class TestAgentMetrics:
 
     def test_metrics_collector_observe(self):
         """Observe histogram values and verify stats are returned."""
-        from app.observability.metrics import MetricsCollector, _PROM_AVAILABLE
+        from app.observability.metrics import MetricsCollector
         m = MetricsCollector()
         m.observe("plainsql_query_latency_ms", 100.5, {"intent": "test_obs"})
         m.observe("plainsql_query_latency_ms", 200.0, {"intent": "test_obs"})

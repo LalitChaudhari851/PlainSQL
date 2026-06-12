@@ -5,7 +5,6 @@ Generates human-readable insights without LLM (pure statistical analysis).
 
 import structlog
 from collections import Counter
-from typing import Any
 
 logger = structlog.get_logger()
 

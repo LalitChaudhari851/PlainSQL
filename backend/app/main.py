@@ -26,6 +26,7 @@ from app.observability.logger import setup_logging
 
 # ── Conversational fast-path (extracted to app/api/fast_path.py) ──
 from app.api.fast_path import detect_conversational as _detect_conversational
+from app.startup import ensure_feedback_table as _ensure_feedback_table
 
 # ── Global state ─────────────────────────────────────────
 # NOTE: _app_state is written once at startup and read-only during requests.
@@ -247,7 +248,6 @@ async def lifespan(app: FastAPI):
 
 
 # ── Startup utilities (extracted to app/startup.py) ──
-from app.startup import ensure_feedback_table as _ensure_feedback_table
 
 
 def _register_legacy_chat(app: FastAPI, orchestrator, tracer, rate_limiter, input_validator, metrics_collector, conversation_manager=None, dedup=None, require_auth: bool = False, auth_service=None):

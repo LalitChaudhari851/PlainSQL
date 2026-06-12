@@ -18,7 +18,6 @@ For full end-to-end evaluation with a live system, use:
 import json
 import os
 import sys
-import time
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -187,7 +186,7 @@ def run_offline_eval():
     }
 
     print(f"\n{'=' * 60}")
-    print(f"  OFFLINE EVALUATION RESULTS")
+    print("  OFFLINE EVALUATION RESULTS")
     print(f"{'=' * 60}")
     print(f"  Total queries:            {total}")
     print(f"  Exact Match Rate:         {summary['exact_match_rate']}%")
@@ -195,7 +194,7 @@ def run_offline_eval():
     print(f"  Total Hallucinations:     {summary['total_hallucinations']}")
 
     # ── Difficulty Breakdown ─────────────────────────────
-    print(f"\n  By Difficulty:")
+    print("\n  By Difficulty:")
     for diff in ["easy", "medium", "hard"]:
         diff_results = [r for r in results if r["difficulty"] == diff]
         if diff_results:

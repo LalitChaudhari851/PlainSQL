@@ -5,7 +5,7 @@ Includes SSE streaming for real-time pipeline feedback.
 
 import json
 import time
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from app.api.schemas import (
     GenerateSQLRequest, QueryResult,

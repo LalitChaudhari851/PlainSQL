@@ -7,7 +7,6 @@ enabling cross-device chat history and user-bound data.
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from typing import Optional
 import structlog
 
 logger = structlog.get_logger()

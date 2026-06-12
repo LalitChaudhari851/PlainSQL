@@ -106,7 +106,7 @@ def eval_sql_validation(dataset):
     block_rate = blocked / len(dangerous_queries) * 100
     allow_rate = allowed / len(safe_queries) * 100
 
-    print(f"\n  [SQL Validation]")
+    print("\n  [SQL Validation]")
     print(f"    Dangerous queries blocked: {blocked}/{len(dangerous_queries)} ({block_rate:.0f}%)")
     print(f"    Safe queries allowed:      {allowed}/{len(safe_queries)} ({allow_rate:.0f}%)")
 
@@ -151,7 +151,7 @@ def eval_intent_classification():
             print(f"    WARN '{query}' -> {actual} (expected one of {expected_intents})")
 
     accuracy = correct / len(test_cases) * 100
-    print(f"\n  [Intent Classification]")
+    print("\n  [Intent Classification]")
     print(f"    Accuracy: {correct}/{len(test_cases)} ({accuracy:.0f}%)")
 
     status = "PASS" if accuracy >= 75 else "FAIL"
@@ -184,7 +184,7 @@ def eval_prompt_registry(dataset):
         except Exception:
             pass
 
-    print(f"\n  [Prompt Registry]")
+    print("\n  [Prompt Registry]")
     print(f"    Templates found: {len(templates)} (required: {len(required)}, missing: {len(missing)})")
     print(f"    Render test: {render_ok}/5 OK")
 
@@ -214,7 +214,7 @@ def eval_guardrails(dataset):
     ]
     caught = sum(1 for sql in hallucinated_sqls if guardrail.validate_sql_references(sql))
 
-    print(f"\n  [Output Guardrails]")
+    print("\n  [Output Guardrails]")
     print(f"    Valid SQL accepted: {valid_pass}/{len(dataset)}")
     print(f"    Hallucinations caught: {caught}/{len(hallucinated_sqls)}")
 
@@ -243,7 +243,7 @@ def eval_structural_metrics(dataset):
     # Hallucination detection on expected SQL should be minimal
     total_halluc = sum(len(halluc.detect(item["expected_sql"])) for item in dataset)
 
-    print(f"\n  [Structural Metrics Calibration]")
+    print("\n  [Structural Metrics Calibration]")
     print(f"    Self-similarity = 1.0: {perfect_self}/{len(dataset)}")
     print(f"    Avg self-similarity:   {avg_self_sim:.3f}")
     print(f"    False-positive hallucinations on gold SQL: {total_halluc}")
@@ -413,7 +413,7 @@ def run_llm_eval(dataset):
             }
 
     print(f"\n{'=' * 65}")
-    print(f"  LLM EVALUATION RESULTS")
+    print("  LLM EVALUATION RESULTS")
     print(f"{'=' * 65}")
     print(f"  Exact Match Rate:    {summary['exact_match_rate']}%")
     print(f"  Execution Accuracy:  {summary['execution_accuracy']}%")
@@ -421,7 +421,7 @@ def run_llm_eval(dataset):
     print(f"  Hallucinations:      {summary['total_hallucinations']}")
     print(f"  Errors:              {summary['error_count']}")
     print(f"  Latency p50/p95:     {summary['latency']['p50_ms']}ms / {summary['latency']['p95_ms']}ms")
-    print(f"\n  By Difficulty:")
+    print("\n  By Difficulty:")
     for diff, data in summary["by_difficulty"].items():
         print(f"    {diff:>8}: {data['exact_match_rate']}% exact, {data['execution_accuracy']}% exec, {data['avg_similarity']:.3f} sim, {data['avg_latency_ms']}ms avg")
 
@@ -452,12 +452,12 @@ def main():
             all_results["llm_eval"] = run_llm_eval(dataset)
         except Exception as e:
             print(f"\n  [FAIL] LLM eval failed: {e}")
-            print(f"         Make sure DB_URI and HUGGINGFACEHUB_API_TOKEN are set in .env")
+            print("         Make sure DB_URI and HUGGINGFACEHUB_API_TOKEN are set in .env")
             all_results["llm_eval"] = {"status": "FAILED", "error": str(e)}
 
     # Final summary
     print(f"\n{'=' * 65}")
-    print(f"  EVALUATION COMPLETE")
+    print("  EVALUATION COMPLETE")
     print(f"{'=' * 65}")
 
     comp = all_results["component_eval"]

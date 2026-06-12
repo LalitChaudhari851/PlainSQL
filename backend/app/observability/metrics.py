@@ -8,14 +8,12 @@ is not installed (e.g., minimal local dev).
 Exposes /metrics endpoint for Prometheus scraping.
 """
 
-import time
-from functools import wraps
 
 try:
     from prometheus_client import (
-        Counter, Histogram, Gauge, Info,
+        Counter, Histogram, Gauge,
         generate_latest, CONTENT_TYPE_LATEST,
-        CollectorRegistry, REGISTRY,
+        REGISTRY,
     )
     _PROM_AVAILABLE = True
 except ImportError:

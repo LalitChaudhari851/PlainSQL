@@ -21,7 +21,7 @@ def sql_generation_node(state: AgentState, llm_router) -> dict:
     user_query = state["user_query"]
     context = state.get("relevant_schema", "")
     history = state.get("conversation_history", [])
-    intent = state.get("intent", "data_query")
+    _intent = state.get("intent", "data_query")
     retry_count = state.get("retry_count", 0)
     validation_errors = state.get("validation_errors", [])
     trace_id = state.get("trace_id", "unknown")

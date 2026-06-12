@@ -4,7 +4,6 @@ Pydantic Request/Response Schemas — Type-safe API contracts.
 
 from pydantic import BaseModel, Field
 from typing import Optional, Any
-from datetime import datetime
 
 
 # ── Chat / Query Schemas ─────────────────────────────────

@@ -7,7 +7,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.auth.jwt_auth import AuthService
-from app.auth.rbac import Role, Permission, check_permission, ROLE_PERMISSIONS
+from app.auth.rbac import Permission, check_permission
 
 
 class TestAuthService:

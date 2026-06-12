@@ -7,7 +7,6 @@ Create Date: 2026-05-02
 from typing import Sequence, Union
 
 from alembic import op
-import sqlalchemy as sa
 
 revision: str = "001"
 down_revision: Union[str, None] = None

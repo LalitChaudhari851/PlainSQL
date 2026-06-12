@@ -11,7 +11,6 @@ Falls back gracefully when sentence-transformers is unavailable.
 """
 
 import time
-import hashlib
 import threading
 import structlog
 from typing import Optional

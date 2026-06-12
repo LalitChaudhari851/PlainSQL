@@ -3,11 +3,9 @@ API Middleware — Auth verification, rate limiting, and request logging.
 """
 
 import time
-import json
 import hashlib
 import structlog
-from fastapi import Request, HTTPException, status
-from fastapi.responses import JSONResponse
+from fastapi import Request
 from typing import Optional
 
 from app.auth.jwt_auth import AuthService

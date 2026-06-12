@@ -5,7 +5,6 @@ and local structured logging.
 """
 
 import os
-import time
 import structlog
 from contextlib import contextmanager
 from typing import Optional

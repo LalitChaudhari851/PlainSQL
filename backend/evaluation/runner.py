@@ -698,7 +698,7 @@ class EvalRunner:
         }
 
         print(f"\n{'='*60}")
-        print(f"📊 EVALUATION RESULTS")
+        print("📊 EVALUATION RESULTS")
         print(f"{'='*60}")
         print(f"   Exact Match:         {summary['exact_match_rate']}%")
         print(f"   Execution Accuracy:  {summary['execution_accuracy']}%")
@@ -716,9 +716,9 @@ class EvalRunner:
         if pushed:
             print(f"   LangSmith:           ✅ pushed to '{LangSmithEvalReporter.PROJECT_NAME}'")
         elif self.langsmith_reporter.enabled:
-            print(f"   LangSmith:           ⚠️  push failed — check logs")
+            print("   LangSmith:           ⚠️  push failed — check logs")
         else:
-            print(f"   LangSmith:           — not configured (set LANGSMITH_API_KEY)")
+            print("   LangSmith:           — not configured (set LANGSMITH_API_KEY)")
 
         return summary
 

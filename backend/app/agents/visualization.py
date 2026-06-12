@@ -22,7 +22,7 @@ def visualization_node(state: AgentState) -> dict:
     results = state.get("query_results", [])
     columns = state.get("column_names", [])
     user_query = state.get("user_query", "")
-    sql = state.get("sanitized_sql", "") or state.get("generated_sql", "")
+    _sql = state.get("sanitized_sql", "") or state.get("generated_sql", "")
     trace_id = state.get("trace_id", "unknown")
 
     logger.info("agent_started", agent="visualization", trace_id=trace_id)
@@ -156,7 +156,7 @@ def _generate_insights(results, numeric_cols, text_cols, date_cols, row_count) -
             avg_val = sum(values) / len(values)
             min_val = min(values)
             max_val = max(values)
-            total = sum(values)
+            _total = sum(values)
 
             col_label = col.replace("_", " ").title()
             insights.append(f"**{col_label}**: avg {avg_val:,.2f} | min {min_val:,.2f} | max {max_val:,.2f}")

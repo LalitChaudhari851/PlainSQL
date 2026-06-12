@@ -16,7 +16,6 @@ import time
 import argparse
 import structlog
 from typing import Optional
-from pathlib import Path
 
 logger = structlog.get_logger()
 
@@ -229,7 +228,7 @@ def print_report(results: list[EvalResult], json_output: bool = False):
     # Show failures
     failures = [r for r in results if not r.passed]
     if failures:
-        print(f"\n  Failed Cases:")
+        print("\n  Failed Cases:")
         print("  " + "-" * 45)
         for r in failures:
             print(f"  ✗ {r.case_id}: tables={r.table_match}, pattern={r.pattern_match}")

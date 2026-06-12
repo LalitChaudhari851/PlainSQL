@@ -6,7 +6,6 @@ cross-device chat persistence and server-side state management.
 """
 
 import uuid
-from datetime import datetime
 from typing import Optional
 import structlog
 
