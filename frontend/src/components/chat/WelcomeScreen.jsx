@@ -1,143 +1,175 @@
 import { motion } from 'framer-motion';
-import { BarChart3, DatabaseZap, GitBranch, ShieldCheck, Sparkles, Workflow } from 'lucide-react';
+import { BarChart3, DatabaseZap, GitBranch, ShieldCheck, Sparkles, Workflow, ArrowRight } from 'lucide-react';
 
 const PROMPTS = [
   {
     icon: BarChart3,
     title: 'Expansion revenue',
     query: 'Show net revenue retention by customer segment for the last 4 quarters',
+    color: '#3b82f6',
   },
   {
     icon: Workflow,
     title: 'Pipeline quality',
     query: 'Which opportunities have high ARR but stalled for more than 30 days?',
+    color: '#06b6d4',
   },
   {
     icon: GitBranch,
     title: 'Support impact',
     query: 'Compare churn risk for customers with critical tickets versus healthy accounts',
+    color: '#a78bfa',
   },
   {
     icon: DatabaseZap,
     title: 'Product usage',
     query: 'Rank workspaces by query volume, failed executions, and active users this month',
+    color: '#22c55e',
   },
 ];
 
 const CAPABILITIES = [
-  { label: 'Retrieval', value: 'Intelligent context' },
-  { label: 'Routing', value: 'Smart analysis' },
-  { label: 'Guardrails', value: 'Validated SQL' },
-  { label: 'Traceability', value: 'Full transparency' },
-];
-
-const DATASET_STATS = [
-  ['18', 'tables'],
-  ['27K+', 'demo rows'],
-  ['5', 'domains'],
-  ['36 mo', 'history'],
+  { icon: '🔍', label: 'Hybrid RAG', desc: 'Vector + BM25 retrieval combined' },
+  { icon: '⚡', label: 'Smart routing', desc: 'Picks the best LLM for the task' },
+  { icon: '🛡️', label: 'SQL guardrails', desc: 'Read-only, validated before execution' },
+  { icon: '📊', label: 'Full transparency', desc: 'See every step of the pipeline' },
 ];
 
 export default function WelcomeScreen({ onPrompt }) {
   return (
-    <div className="relative flex min-h-full flex-col justify-center px-4 py-8">
+    <div className="relative flex min-h-full flex-col items-center justify-center px-4 py-10">
 
-      <div className="relative mx-auto grid w-full max-w-5xl gap-5 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
-        <section className="space-y-6">
+      {/* Hero section — single centered column */}
+      <div className="w-full max-w-2xl mx-auto text-center mb-8">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-medium mb-6"
+          style={{
+            background: 'rgba(6,182,212,0.08)',
+            border: '1px solid rgba(6,182,212,0.2)',
+            color: '#67e8f9',
+          }}
+        >
+          <Sparkles size={13} />
+          AI data copilot for production SQL workflows
+        </motion.div>
+
+        <motion.h2
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.04 }}
+          className="text-3xl md:text-4xl font-semibold leading-tight text-white mb-4"
+        >
+          Ask the business question.
+          <br />
+          <span className="text-gradient">PlainSQL shows the reasoning.</span>
+        </motion.h2>
+
+        <motion.p
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.08 }}
+          className="text-t3 text-sm leading-7 max-w-lg mx-auto"
+        >
+          Schema retrieval, SQL generation, validation, execution, and insight
+          synthesis — visible as a live pipeline, not hidden behind a spinner.
+        </motion.p>
+      </div>
+
+      {/* Capabilities row */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.12 }}
+        className="w-full max-w-2xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-2 mb-8"
+      >
+        {CAPABILITIES.map((item, i) => (
           <motion.div
-            initial={{ opacity: 0, y: 12 }}
+            key={item.label}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs font-medium text-cyan-200"
+            transition={{ delay: 0.14 + i * 0.04 }}
+            className="rounded-xl p-3 text-center"
+            style={{
+              background: 'var(--surface-1)',
+              border: '1px solid var(--border-1)',
+            }}
           >
-            <Sparkles size={13} />
-            AI data copilot for production SQL workflows
+            <span className="text-base mb-1 block">{item.icon}</span>
+            <p className="text-xs font-semibold text-t2 mb-0.5">{item.label}</p>
+            <p className="text-[11px] text-t4 leading-snug hidden sm:block">{item.desc}</p>
           </motion.div>
+        ))}
+      </motion.div>
 
-          <div>
-            <motion.h2
-              initial={{ opacity: 0, y: 14 }}
+      {/* Prompt cards */}
+      <div className="w-full max-w-2xl mx-auto">
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          className="text-xs font-semibold uppercase tracking-widest text-t4 mb-3 px-1"
+        >
+          Try a sample query
+        </motion.p>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          {PROMPTS.map(({ icon: Icon, title, query, color }, i) => (
+            <motion.button
+              key={query}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.04 }}
-              className="max-w-2xl text-left text-3xl font-semibold leading-tight text-white md:text-4xl"
+              transition={{ delay: 0.22 + i * 0.05, duration: 0.3 }}
+              whileHover={{ y: -2, boxShadow: `0 8px 30px ${color}15` }}
+              whileTap={{ scale: 0.99 }}
+              onClick={() => onPrompt(query)}
+              className="group rounded-xl p-4 text-left transition-all focus-ring"
+              style={{
+                background: 'var(--surface-1)',
+                border: '1px solid var(--border-1)',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.borderColor = `${color}40`;
+                e.currentTarget.style.background = `${color}08`;
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.borderColor = 'var(--border-1)';
+                e.currentTarget.style.background = 'var(--surface-1)';
+              }}
             >
-              Ask the business question. PlainSQL shows the reasoning path.
-            </motion.h2>
-            <motion.p
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.08 }}
-              className="mt-4 max-w-xl text-left text-sm leading-7 text-white/52"
-            >
-              Schema-aware retrieval, SQL generation, validation, execution, and insight synthesis are visible as a live pipeline, not hidden behind a spinner.
-            </motion.p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {CAPABILITIES.map((item, i) => (
-              <motion.div
-                key={item.label}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.12 + i * 0.04 }}
-                className="rounded-xl border border-white/[0.07] bg-white/[0.035] p-3"
-              >
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-white/28">{item.label}</p>
-                <p className="mt-1 text-xs text-white/70">{item.value}</p>
-              </motion.div>
-            ))}
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-4 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Demo Workspace</p>
-              <h3 className="mt-1 text-lg font-semibold text-white">SaaS revenue intelligence</h3>
-            </div>
-            <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs font-medium text-emerald-300">
-              Indexed
-            </div>
-          </div>
-
-          <div className="mb-4 grid grid-cols-4 gap-2">
-            {DATASET_STATS.map(([value, label]) => (
-              <div key={label} className="rounded-xl border border-white/[0.06] bg-black/20 p-3">
-                <p className="font-mono text-base font-semibold text-white">{value}</p>
-                <p className="text-[11px] uppercase tracking-wide text-white/28">{label}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="grid gap-2">
-            {PROMPTS.map(({ icon: Icon, title, query }, i) => (
-              <motion.button
-                key={query}
-                initial={{ opacity: 0, x: 14 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.18 + i * 0.05, duration: 0.28 }}
-                whileHover={{ x: 4 }}
-                whileTap={{ scale: 0.99 }}
-                onClick={() => onPrompt(query)}
-                className="group rounded-xl border border-white/[0.07] bg-white/[0.03] p-4 text-left transition-all hover:border-cyan-400/30 hover:bg-cyan-400/[0.06] focus-ring"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5 rounded-lg border border-white/[0.08] bg-white/[0.05] p-2 text-cyan-300 transition-colors group-hover:text-white">
-                    <Icon size={15} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-white">{title}</p>
-                    <p className="mt-1 text-xs leading-5 text-white/42">{query}</p>
-                  </div>
+              <div className="flex items-start gap-3">
+                <div
+                  className="mt-0.5 rounded-lg p-2 flex-shrink-0 transition-colors"
+                  style={{
+                    background: `${color}12`,
+                    border: `1px solid ${color}20`,
+                  }}
+                >
+                  <Icon size={15} style={{ color }} />
                 </div>
-              </motion.button>
-            ))}
-          </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-white mb-1 flex items-center gap-1.5">
+                    {title}
+                    <ArrowRight size={12} className="text-t4 group-hover:text-t2 group-hover:translate-x-0.5 transition-all opacity-0 group-hover:opacity-100" />
+                  </p>
+                  <p className="text-xs leading-5 text-t3">{query}</p>
+                </div>
+              </div>
+            </motion.button>
+          ))}
+        </div>
 
-          <div className="mt-4 flex items-center gap-2 rounded-xl border border-violet-400/15 bg-violet-400/[0.06] px-3 py-2 text-xs text-violet-200/80">
-            <ShieldCheck size={14} />
-            Every query is validated against read-only execution guardrails.
-          </div>
-        </section>
+        {/* Security note */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="mt-4 flex items-center justify-center gap-2 py-2 text-xs text-t4"
+        >
+          <ShieldCheck size={13} className="text-emerald-400/60" />
+          Every query is validated against read-only execution guardrails
+        </motion.div>
       </div>
     </div>
   );

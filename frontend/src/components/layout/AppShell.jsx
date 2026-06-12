@@ -30,6 +30,24 @@ export default function AppShell() {
       .catch(() => {});
   }, [setSchemaTables]);
 
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handler = (e) => {
+      // Ctrl+N or Cmd+N — new chat
+      if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+        e.preventDefault();
+        store.newChat();
+      }
+      // Ctrl+/ — focus composer
+      if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+        e.preventDefault();
+        document.querySelector('#composer-input')?.focus();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [store]);
+
   // Listen for sidebar saved-query shortcuts
   useEffect(() => {
     const handler = (e) => handleSubmit(e.detail.query);
@@ -178,11 +196,11 @@ export default function AppShell() {
   }, [store, handleSubmit]);
 
   return (
-    <div className="flex h-full overflow-hidden" style={{ background: '#060912' }}>
+    <div className="flex h-full overflow-hidden" style={{ background: 'var(--surface-0)' }}>
       {/* Subtle background gradient */}
-      <div className="fixed inset-0 pointer-events-none bg-grid opacity-100" />
+      <div className="fixed inset-0 pointer-events-none bg-grid opacity-60" />
       <div className="fixed top-0 left-0 w-full h-full pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59,130,246,0.07) 0%, transparent 60%)' }} />
+        style={{ background: 'radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59,130,246,0.06) 0%, transparent 60%)' }} />
 
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 

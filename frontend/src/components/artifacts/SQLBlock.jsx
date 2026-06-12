@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Copy, Bookmark, ChevronDown, ChevronUp, Code2, Check } from 'lucide-react';
+import { Copy, Bookmark, ChevronDown, ChevronRight, Code2, Check } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import useChatStore from '../../store/useChatStore';
@@ -27,8 +27,11 @@ export default function SQLBlock({ sql, messageId }) {
   const saveSqlQuery = useChatStore(s => s.saveSqlQuery);
   const [collapsed, setCollapsed] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   if (!sql) return null;
+
+  const lineCount = sql.split('\n').length;
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(sql).catch(() => {});
@@ -39,48 +42,62 @@ export default function SQLBlock({ sql, messageId }) {
 
   const handleSave = () => {
     saveSqlQuery(sql);
+    setSaved(true);
     addToast('Query saved', 'success');
+    setTimeout(() => setSaved(false), 2000);
   };
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-xl overflow-hidden mb-3"
-      style={{ border: '1px solid rgba(59,130,246,0.2)', background: 'rgba(59,130,246,0.03)' }}
+      className="rounded-xl overflow-hidden mb-4"
+      style={{
+        border: '1px solid rgba(59,130,246,0.18)',
+        background: 'rgba(59,130,246,0.03)',
+      }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2.5"
-        style={{ background: 'rgba(59,130,246,0.06)', borderBottom: '1px solid rgba(59,130,246,0.12)' }}>
+      <div
+        className="flex items-center justify-between px-4 py-2.5"
+        style={{
+          background: 'rgba(59,130,246,0.06)',
+          borderBottom: '1px solid rgba(59,130,246,0.10)',
+        }}
+      >
         <div className="flex items-center gap-2">
           <Code2 size={13} className="text-primary" />
           <span className="text-xs font-semibold text-primary">Generated SQL</span>
+          <span className="text-xs text-t4 font-mono tabular-nums">{lineCount} {lineCount === 1 ? 'line' : 'lines'}</span>
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={handleSave}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-white/50 hover:text-white hover:bg-white/10 transition-all"
+            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-t3 hover:text-white hover:bg-white/10 transition-all"
+            aria-label="Save query"
           >
-            <Bookmark size={11} />
-            <span className="hidden sm:inline">Save</span>
+            {saved ? <Check size={11} className="text-emerald-400" /> : <Bookmark size={11} />}
+            <span className="hidden sm:inline">{saved ? 'Saved!' : 'Save'}</span>
           </button>
           <button
             onClick={handleCopy}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-white/50 hover:text-white hover:bg-white/10 transition-all"
+            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-t3 hover:text-white hover:bg-white/10 transition-all"
+            aria-label="Copy SQL"
           >
-            {copied ? <Check size={11} className="text-success" /> : <Copy size={11} />}
+            {copied ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
             <span className="hidden sm:inline">{copied ? 'Copied!' : 'Copy'}</span>
           </button>
           <button
             onClick={() => setCollapsed(v => !v)}
-            className="p-1 rounded-lg text-white/30 hover:text-white hover:bg-white/10 transition-all"
+            className="p-1 rounded-lg text-t4 hover:text-white hover:bg-white/10 transition-all"
+            aria-label={collapsed ? 'Expand SQL' : 'Collapse SQL'}
           >
-            {collapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
+            {collapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
           </button>
         </div>
       </div>
 
-      {/* Code */}
+      {/* Code with line numbers */}
       <AnimatePresence initial={false}>
         {!collapsed && (
           <motion.div
@@ -96,6 +113,14 @@ export default function SQLBlock({ sql, messageId }) {
                 style={customStyle}
                 customStyle={{ background: 'transparent', padding: 0, margin: 0 }}
                 wrapLongLines={false}
+                showLineNumbers={lineCount > 3}
+                lineNumberStyle={{
+                  color: 'rgba(255,255,255,0.15)',
+                  fontSize: '11px',
+                  paddingRight: '12px',
+                  minWidth: '2em',
+                  userSelect: 'none',
+                }}
               >
                 {sql}
               </SyntaxHighlighter>

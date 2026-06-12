@@ -14,7 +14,7 @@ langchain-core>=0.3.0,<0.4.0
 
 # ── LLM Providers ───────────────────────────────────────
 huggingface_hub>=0.23.0,<0.30.0
-# openai>=1.40.0,<2.0.0        # Uncomment if using OpenAI
+openai>=1.40.0,<2.0.0          # Required by GroqProvider (OpenAI-compatible SDK)
 # anthropic>=0.34.0,<1.0.0     # Uncomment if using Anthropic
 
 # ── Database ─────────────────────────────────────────────

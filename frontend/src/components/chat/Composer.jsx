@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowUp, Loader2, Search, Sparkles } from 'lucide-react';
+import { ArrowUp, Loader2, Sparkles } from 'lucide-react';
 import useChatStore from '../../store/useChatStore';
 
 const QUICK_PROMPTS = [
@@ -12,6 +12,7 @@ const QUICK_PROMPTS = [
 export default function Composer({ onSubmit }) {
   const isSending = useChatStore(s => s.isSending);
   const [value, setValue] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef(null);
 
   useEffect(() => {
@@ -42,56 +43,78 @@ export default function Composer({ onSubmit }) {
   const canSend = value.trim().length > 0 && !isSending;
 
   return (
-    <div className="flex-shrink-0 border-t border-white/[0.06] px-4 pb-4 pt-3" style={{ background: 'rgba(6,9,18,0.86)', backdropFilter: 'blur(18px)' }}>
+    <div
+      className="flex-shrink-0 px-4 pb-4 pt-3"
+      style={{
+        background: 'rgba(6,9,18,0.9)',
+        backdropFilter: 'blur(20px)',
+        borderTop: '1px solid var(--border-1)',
+      }}
+    >
       <div className="mx-auto max-w-5xl">
-        <AnimatePresence>
-          {isSending ? (
+        {/* Quick prompts — always visible, dimmed when sending */}
+        <div className={`mb-2 flex gap-2 overflow-x-auto scrollbar-none transition-opacity duration-200 ${isSending ? 'opacity-30 pointer-events-none' : ''}`}>
+          {isSending && (
             <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="mb-2 flex items-center gap-2 px-1"
+              initial={{ opacity: 0, width: 0 }}
+              animate={{ opacity: 1, width: 'auto' }}
+              className="flex items-center gap-2 flex-shrink-0 pr-2"
             >
               <Loader2 size={12} className="animate-spin text-blue-400" />
-              <span className="text-xs text-white/45">Analyzing your question...</span>
-            </motion.div>
-          ) : (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="mb-2 flex gap-2 overflow-x-auto scrollbar-none"
-            >
-              {QUICK_PROMPTS.map(prompt => (
-                <button
-                  key={prompt}
-                  type="button"
-                  onClick={() => setValue(prompt)}
-                  className="flex-shrink-0 rounded-full border border-white/[0.07] bg-white/[0.035] px-3 py-1.5 text-xs text-white/42 transition-all hover:border-cyan-400/25 hover:text-white/72"
-                >
-                  {prompt}
-                </button>
-              ))}
+              <span className="text-xs text-t3 whitespace-nowrap">Analyzing...</span>
             </motion.div>
           )}
-        </AnimatePresence>
+          {QUICK_PROMPTS.map(prompt => (
+            <button
+              key={prompt}
+              type="button"
+              onClick={() => setValue(prompt)}
+              disabled={isSending}
+              className="flex-shrink-0 rounded-full px-3 py-1.5 text-xs text-t3 transition-all hover:text-t2 disabled:cursor-not-allowed"
+              style={{
+                background: 'var(--surface-1)',
+                border: '1px solid var(--border-1)',
+              }}
+              onMouseEnter={e => {
+                if (!isSending) {
+                  e.currentTarget.style.borderColor = 'rgba(6,182,212,0.25)';
+                  e.currentTarget.style.background = 'rgba(6,182,212,0.06)';
+                }
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.borderColor = 'var(--border-1)';
+                e.currentTarget.style.background = 'var(--surface-1)';
+              }}
+            >
+              {prompt}
+            </button>
+          ))}
+        </div>
 
         <form onSubmit={handleSubmit}>
           <div
-            className="flex items-end gap-3 rounded-2xl px-4 py-3 transition-all"
+            className={`flex items-end gap-3 rounded-2xl px-4 py-3 transition-all duration-200 ${isFocused ? 'border-glow' : ''}`}
             style={{
-              background: 'rgba(255,255,255,0.05)',
-              border: canSend ? '1px solid rgba(59,130,246,0.3)' : '1px solid rgba(255,255,255,0.1)',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+              background: 'var(--surface-2)',
+              border: isFocused || canSend
+                ? '1px solid rgba(59,130,246,0.3)'
+                : '1px solid var(--border-2)',
+              boxShadow: isFocused
+                ? '0 0 0 3px rgba(59,130,246,0.08), 0 8px 32px rgba(0,0,0,0.2)'
+                : '0 8px 32px rgba(0,0,0,0.15)',
             }}
           >
-            <div className="mb-1 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-black/20">
-              {value ? <Search size={14} className="text-cyan-300" /> : <Sparkles size={14} className="text-white/32" />}
+            <div className="mb-1 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
+              style={{ background: 'var(--surface-1)', border: '1px solid var(--border-1)' }}>
+              <Sparkles size={13} className={value ? 'text-cyan-300' : 'text-t4'} />
             </div>
             <textarea
+              id="composer-input"
               ref={textareaRef}
               value={value}
               onChange={e => setValue(e.target.value)}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
               onKeyDown={e => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
@@ -101,18 +124,24 @@ export default function Composer({ onSubmit }) {
               disabled={isSending}
               rows={1}
               placeholder="Ask a revenue, support, product, or pipeline question..."
-              className="min-h-[24px] flex-1 resize-none bg-transparent text-sm leading-relaxed text-white outline-none placeholder:text-white/28 disabled:opacity-50"
+              className="min-h-[24px] flex-1 resize-none bg-transparent text-sm leading-relaxed text-white outline-none placeholder:text-t4 disabled:opacity-50"
+              aria-label="Type your query"
             />
             <motion.button
               type="submit"
               disabled={!canSend}
               whileHover={canSend ? { scale: 1.05 } : {}}
               whileTap={canSend ? { scale: 0.95 } : {}}
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl transition-all disabled:opacity-30"
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl transition-all duration-200 disabled:opacity-25"
               style={{
-                background: canSend ? 'linear-gradient(135deg, #2563eb, #0891b2)' : 'rgba(255,255,255,0.08)',
-                boxShadow: canSend ? '0 4px 12px rgba(59,130,246,0.25)' : 'none',
+                background: canSend
+                  ? 'linear-gradient(135deg, #2563eb, #0891b2)'
+                  : 'var(--surface-2)',
+                boxShadow: canSend
+                  ? '0 4px 16px rgba(59,130,246,0.3)'
+                  : 'none',
               }}
+              aria-label="Send query"
             >
               <ArrowUp size={15} className="text-white" />
             </motion.button>
@@ -120,8 +149,12 @@ export default function Composer({ onSubmit }) {
         </form>
 
         <div className="mt-1.5 flex justify-between px-1">
-          <span className="text-xs text-white/20">Enter to run. Shift+Enter for a new line.</span>
-          <span className="hidden text-xs text-white/18 sm:inline">Validated SQL · Read-only</span>
+          <span className="text-xs text-t4">
+            Enter to run · Shift+Enter for new line
+          </span>
+          <span className="hidden text-xs text-t5 sm:inline">
+            Validated SQL · Read-only
+          </span>
         </div>
       </div>
     </div>
