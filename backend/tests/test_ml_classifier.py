@@ -11,6 +11,14 @@ from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+# Check if ML classifier can actually run (model + sentence_transformers)
+_MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "app", "agents", "models", "intent_model.joblib")
+try:
+    import sentence_transformers  # noqa: F401
+    _ML_READY = os.path.exists(_MODEL_PATH)
+except ImportError:
+    _ML_READY = False
+
 
 class TestMLClassifierFallback:
     """Test that the system gracefully falls back when ML model is unavailable."""
@@ -63,11 +71,31 @@ class TestMLClassifierIntegration:
         )
         return os.path.exists(model_path)
 
+    @staticmethod
+    def _has_deps():
+        try:
+            import sentence_transformers  # noqa: F401
+            return True
+        except ImportError:
+            return False
+
+    @staticmethod
+    def _can_run():
+        """Model file exists AND sentence_transformers is installed."""
+        model_path = os.path.join(
+            os.path.dirname(__file__), "..", "app", "agents", "models", "intent_model.joblib"
+        )
+        if not os.path.exists(model_path):
+            return False
+        try:
+            import sentence_transformers  # noqa: F401
+            return True
+        except ImportError:
+            return False
+
     @pytest.mark.skipif(
-        not os.path.exists(
-            os.path.join(os.path.dirname(__file__), "..", "app", "agents", "models", "intent_model.joblib")
-        ),
-        reason="ML model not trained yet — run: python -m app.agents.models.train_classifier",
+        not _ML_READY,
+        reason="ML model not trained or sentence_transformers not installed",
     )
     def test_ml_model_loads(self):
         """Verify the trained model loads successfully."""
@@ -76,10 +104,8 @@ class TestMLClassifierIntegration:
         assert clf.available is True
 
     @pytest.mark.skipif(
-        not os.path.exists(
-            os.path.join(os.path.dirname(__file__), "..", "app", "agents", "models", "intent_model.joblib")
-        ),
-        reason="ML model not trained yet",
+        not _ML_READY,
+        reason="ML model not trained or sentence_transformers not installed",
     )
     def test_ml_classifies_greeting_as_chat(self):
         from app.agents.ml_classifier import MLIntentClassifier
@@ -90,10 +116,8 @@ class TestMLClassifierIntegration:
         assert result.confidence > 0.5
 
     @pytest.mark.skipif(
-        not os.path.exists(
-            os.path.join(os.path.dirname(__file__), "..", "app", "agents", "models", "intent_model.joblib")
-        ),
-        reason="ML model not trained yet",
+        not _ML_READY,
+        reason="ML model not trained or sentence_transformers not installed",
     )
     def test_ml_classifies_sql_query(self):
         from app.agents.ml_classifier import MLIntentClassifier
@@ -117,10 +141,8 @@ class TestMLClassifierIntegration:
         assert result.intent == "meta_query"
 
     @pytest.mark.skipif(
-        not os.path.exists(
-            os.path.join(os.path.dirname(__file__), "..", "app", "agents", "models", "intent_model.joblib")
-        ),
-        reason="ML model not trained yet",
+        not _ML_READY,
+        reason="ML model not trained or sentence_transformers not installed",
     )
     def test_ml_classification_has_confidence(self):
         from app.agents.ml_classifier import MLIntentClassifier
