@@ -383,7 +383,10 @@ class AgentOrchestrator:
         timer.start()
 
         try:
-            final_state = self.graph.invoke(initial_state)
+            final_state = self.graph.invoke(
+                initial_state,
+                config={"recursion_limit": 50},
+            )
             timer.cancel()  # Disarm if pipeline completed in time
 
             elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
