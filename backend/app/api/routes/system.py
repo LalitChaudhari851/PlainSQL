@@ -12,7 +12,7 @@ from app.api.schemas import (
 router = APIRouter(tags=["System"])
 
 
-def create_system_router(auth_service, auth_dep, db_pool, rag_retriever, llm_router, tracer, user_store, start_time):
+def create_system_router(auth_service, auth_dep, db_pool, rag_retriever, llm_router, tracer, user_repo, start_time):
     """Factory to create system routes with injected dependencies."""
 
     # ── Auth Routes ──────────────────────────────────────
@@ -22,7 +22,7 @@ def create_system_router(auth_service, auth_dep, db_pool, rag_retriever, llm_rou
     @auth_router.post("/login", response_model=TokenResponse)
     def login(request: LoginRequest):
         """Authenticate and get JWT token."""
-        user = user_store.get(request.username)
+        user = user_repo.get_by_username(request.username)
         if not user or not auth_service.verify_password(request.password, user["password_hash"]):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -46,24 +46,26 @@ def create_system_router(auth_service, auth_dep, db_pool, rag_retriever, llm_rou
     def register(request: RegisterRequest):
         """Register a new user. Self-registration is always 'viewer' role.
         Only admins can promote users via a separate endpoint."""
-        if request.username in user_store:
+        if user_repo.get_by_username(request.username):
             raise HTTPException(400, "Username already exists")
 
         password_hash = auth_service.hash_password(request.password)
-        user_id = f"user_{len(user_store) + 1}"
+        user_id = f"user_{user_repo.count() + 1}"
 
         # SECURITY: Self-registration is always viewer.
         # Elevated roles (analyst, admin) must be granted by an existing admin.
         assigned_role = "viewer"
 
-        user_store[request.username] = {
-            "id": user_id,
-            "username": request.username,
-            "email": request.email,
-            "password_hash": password_hash,
-            "role": assigned_role,
-            "tenant_id": request.tenant_id,
-        }
+        success = user_repo.create(
+            user_id=user_id,
+            username=request.username,
+            email=request.email,
+            password_hash=password_hash,
+            role=assigned_role,
+            tenant_id=request.tenant_id,
+        )
+        if not success:
+            raise HTTPException(500, "Failed to register user")
 
         token = auth_service.create_access_token(
             user_id=user_id,

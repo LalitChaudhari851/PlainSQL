@@ -190,7 +190,7 @@ async def lifespan(app: FastAPI):
         auth_router, schema_router, analytics_router, health_router = create_system_router(
             auth_service=auth_service, auth_dep=_app_state["auth_dep"],
             db_pool=db_pool, rag_retriever=rag_retriever, llm_router=llm_router,
-            tracer=tracer, user_store=user_store, start_time=START_TIME,
+            tracer=tracer, user_repo=user_repo, start_time=START_TIME,
         )
         app.include_router(auth_router)
         app.include_router(schema_router)
