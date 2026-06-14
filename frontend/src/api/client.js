@@ -1,9 +1,11 @@
+const BASE = import.meta.env.VITE_API_URL || '';
+
 export const API = {
-  stream: '/api/v1/chat/stream',
-  feedback: '/api/v1/feedback',
-  conversations: '/api/v1/conversations',
-  health: '/api/v1/health',
-  schema: '/api/v1/schema',
+  stream: `${BASE}/api/v1/chat/stream`,
+  feedback: `${BASE}/api/v1/feedback`,
+  conversations: `${BASE}/api/v1/conversations`,
+  health: `${BASE}/api/v1/health`,
+  schema: `${BASE}/api/v1/schema`,
 };
 
 const CHAT_RULES = [
