@@ -186,12 +186,13 @@ class AgentOrchestrator:
                 confidence=confidence,
             )
 
-        # If many hallucinations are detected, bump retry count to trigger regeneration
+        # If many hallucinations are detected, mark as invalid.
+        # Do NOT bump retry_count here — only sql_validation_node manages
+        # the retry counter. Double-counting caused infinite loops.
         if len(warnings) >= 3:
             return {
                 "is_valid": False,
                 "validation_errors": [f"Schema grounding failed: {w}" for w in warnings],
-                "retry_count": state.get("retry_count", 0) + 1,
             }
 
         return {
@@ -252,10 +253,13 @@ class AgentOrchestrator:
                         "insights": [f"Visualization skipped due to error: {str(e)[:80]}"],
                         "follow_up_questions": [],
                     }
-                # For critical agents, propagate the error state
+                # For critical agents, propagate the error state.
+                # MUST preserve retry_count to prevent infinite loops
+                # when _safe_execute catches an exception.
                 return {
                     "error": f"{agent_name} failed: {str(e)}",
                     "error_agent": agent_name,
+                    "retry_count": args[0].get("retry_count", 0) if args else 0,
                 }
 
     def _handle_chat(self, state: AgentState) -> dict:

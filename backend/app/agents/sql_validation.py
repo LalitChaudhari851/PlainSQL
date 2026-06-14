@@ -141,11 +141,34 @@ def route_validation(state: AgentState) -> str:
     """
     Conditional edge router for validation results.
     Returns: 'valid', 'retry', or 'blocked'
+
+    Safety invariant: MUST eventually return 'valid' or 'blocked'.
+    The retry_count < 3 check ensures max 3 retries. A hard cap at 10
+    protects against any state corruption that resets retry_count.
     """
-    if state.get("is_valid"):
+    is_valid = state.get("is_valid")
+    retry_count = state.get("retry_count", 0)
+    errors = state.get("validation_errors", [])
+
+    logger.info(
+        "route_validation_decision",
+        is_valid=is_valid,
+        retry_count=retry_count,
+        error_count=len(errors),
+        errors_preview=errors[:2] if errors else [],
+    )
+
+    # Hard safety cap — absolute maximum regardless of any state corruption
+    if retry_count >= 10:
+        logger.error("route_validation_hard_cap", retry_count=retry_count)
+        return "blocked"
+
+    if is_valid is True:
         return "valid"
-    if state.get("retry_count", 0) < 3:
+
+    if retry_count < 3:
         return "retry"
+
     return "blocked"
 
 
