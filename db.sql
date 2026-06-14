@@ -5,8 +5,8 @@
 CREATE DATABASE IF NOT EXISTS chatbot;
 USE chatbot;
 
-CREATE USER IF NOT EXISTS 'bot_user'@'%' IDENTIFIED BY 'YourSecurePassword123!';
-GRANT SELECT ON chatbot.* TO 'bot_user'@'%';
+-- CREATE USER IF NOT EXISTS 'bot_user'@'%' IDENTIFIED BY 'YourSecurePassword123!';
+-- GRANT SELECT ON chatbot.* TO 'bot_user'@'%';
 
 SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS ticket_events;

@@ -50,6 +50,17 @@ class DatabasePool:
         safe_password = self.password.replace("@", "%40")
         engine_uri = f"mysql+pymysql://{self.user}:{safe_password}@{self.host}:{self.port}/{self.db_name}"
 
+        connect_kwargs = {
+            "connect_timeout": 10,
+            "read_timeout": query_timeout,
+            "write_timeout": query_timeout,
+        }
+        # TiDB Cloud requires SSL
+        if self.host and "tidbcloud.com" in self.host:
+            import ssl
+            ssl_ctx = ssl.create_default_context()
+            connect_kwargs["ssl"] = ssl_ctx
+
         self._engine = create_engine(
             engine_uri,
             poolclass=QueuePool,
@@ -58,11 +69,7 @@ class DatabasePool:
             pool_timeout=pool_timeout,
             pool_pre_ping=True,  # Verify connections before checkout (stale conn defense)
             pool_recycle=1800,   # Recycle connections every 30 min (MySQL wait_timeout defense)
-            connect_args={
-                "connect_timeout": 10,
-                "read_timeout": query_timeout,
-                "write_timeout": query_timeout,
-            },
+            connect_args=connect_kwargs,
         )
 
         # ── Set session to READ ONLY for query connections ──
