@@ -7,7 +7,6 @@ import Toast from '../ui/Toast';
 import useChatStore from '../../store/useChatStore';
 import { detectConversational, getConversationalResponse, streamChat, fetchSchema } from '../../api/client';
 
-const uid = (p = 'id') => `${p}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
 const STAGE_TO_STEP = {
   'classifying': 0, 'Understanding': 0,
@@ -23,12 +22,6 @@ export default function AppShell() {
   const store = useChatStore();
   const { addUserMessage, updateMessage, setIsSending, addToast, setSchemaTables, pushContext } = store;
 
-  // Load schema on mount
-  useEffect(() => {
-    fetchSchema()
-      .then(data => { if (data.tables) setSchemaTables(data.tables); })
-      .catch(() => {});
-  }, [setSchemaTables]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -47,13 +40,6 @@ export default function AppShell() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [store]);
-
-  // Listen for sidebar saved-query shortcuts
-  useEffect(() => {
-    const handler = (e) => handleSubmit(e.detail.query);
-    window.addEventListener('plainsql:submit', handler);
-    return () => window.removeEventListener('plainsql:submit', handler);
-  }, []); // eslint-disable-line
 
   const handleSubmit = useCallback(async (question) => {
     if (!question?.trim() || store.isSending) return;
@@ -180,6 +166,13 @@ export default function AppShell() {
       setIsSending(false);
     }
   }, [store, addUserMessage, updateMessage, setIsSending, addToast, pushContext]);
+
+  // Listen for sidebar saved-query shortcuts
+  useEffect(() => {
+    const handler = (e) => handleSubmit(e.detail.query);
+    window.addEventListener('plainsql:submit', handler);
+    return () => window.removeEventListener('plainsql:submit', handler);
+  }, [handleSubmit]);
 
   const handleRegenerate = useCallback((msgId) => {
     const chat = store.getActiveChat();

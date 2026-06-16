@@ -36,17 +36,18 @@ export default function ChatWindow({ onPrompt, onRegenerate }) {
       className="flex-1 overflow-y-auto scrollbar-none relative"
       id="chatScroll"
     >
-      <div className="mx-auto min-h-full max-w-5xl px-4 py-6">
-        {messages.length === 0
-          ? <WelcomeScreen onPrompt={onPrompt} />
-          : (
+      <div className="mx-auto min-h-full max-w-4xl px-4 py-8">
+        {messages.length === 0 ? (
+          <WelcomeScreen onPrompt={onPrompt} />
+        ) : (
+          <div className="space-y-6">
             <AnimatePresence initial={false}>
               {messages.map((msg) => (
                 <motion.div
                   key={msg.id}
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.25 }}
+                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
                 >
                   <MessageBubble
                     message={msg}
@@ -56,9 +57,9 @@ export default function ChatWindow({ onPrompt, onRegenerate }) {
                 </motion.div>
               ))}
             </AnimatePresence>
-          )
-        }
-        <div ref={bottomRef} />
+          </div>
+        )}
+        <div ref={bottomRef} className="h-10" />
       </div>
 
       {/* Scroll-to-bottom FAB */}
@@ -69,17 +70,17 @@ export default function ChatWindow({ onPrompt, onRegenerate }) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: 10 }}
             onClick={scrollToBottom}
-            className="fixed bottom-36 right-6 z-20 w-9 h-9 rounded-full flex items-center justify-center shadow-xl transition-colors"
+            className="fixed bottom-36 right-8 z-20 w-10 h-10 rounded-full flex items-center justify-center shadow-xl border-glow focus-ring"
             style={{
               background: 'var(--surface-3)',
               border: '1px solid var(--border-2)',
-              backdropFilter: 'blur(12px)',
+              backdropFilter: 'blur(16px)',
             }}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             aria-label="Scroll to bottom"
           >
-            <ArrowDown size={14} className="text-t2" />
+            <ArrowDown size={15} className="text-t2" />
           </motion.button>
         )}
       </AnimatePresence>

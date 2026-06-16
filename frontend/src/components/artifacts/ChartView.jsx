@@ -11,17 +11,12 @@ import { Bar, Line } from 'react-chartjs-2';
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Tooltip, Legend, Filler);
 
 const COLORS = [
-  'rgba(59,130,246,0.85)',
-  'rgba(6,182,212,0.85)',
-  'rgba(167,139,250,0.85)',
-  'rgba(34,197,94,0.85)',
-  'rgba(245,158,11,0.85)',
-  'rgba(239,68,68,0.85)',
-];
-
-const GRADIENTS = [
-  ['rgba(59,130,246,0.3)', 'rgba(59,130,246,0.02)'],
-  ['rgba(6,182,212,0.3)', 'rgba(6,182,212,0.02)'],
+  'rgba(99,102,241,0.85)',  // brand indigo
+  'rgba(6,182,212,0.85)',  // cyan
+  'rgba(167,139,250,0.85)', // violet
+  'rgba(52,211,153,0.85)',  // success (emerald)
+  'rgba(251,191,36,0.85)',  // warning
+  'rgba(248,113,113,0.85)', // danger
 ];
 
 function inferType(rows, cols) {
@@ -43,7 +38,7 @@ function buildDataset(rows, type) {
       data,
       borderColor: COLORS[0],
       backgroundColor: type === 'line'
-        ? 'rgba(59,130,246,0.08)'
+        ? 'rgba(99,102,241,0.08)'
         : COLORS.map(c => c),
       pointBackgroundColor: COLORS[1],
       borderWidth: 2,
@@ -66,35 +61,36 @@ const CHART_OPTIONS = {
       align: 'end',
       labels: {
         color: 'rgba(255,255,255,0.4)',
-        font: { family: 'Inter', size: 11 },
-        boxWidth: 12,
-        boxHeight: 12,
-        borderRadius: 3,
+        font: { family: 'Inter', size: 11, weight: '500' },
+        boxWidth: 10,
+        boxHeight: 10,
+        borderRadius: 2,
         useBorderRadius: true,
         padding: 12,
       },
     },
     tooltip: {
-      backgroundColor: 'rgba(6,9,18,0.95)',
-      borderColor: 'rgba(255,255,255,0.1)',
+      backgroundColor: 'var(--surface-05)',
+      borderColor: 'var(--border-1)',
       borderWidth: 1,
-      titleColor: 'rgba(255,255,255,0.9)',
-      bodyColor: 'rgba(255,255,255,0.65)',
-      padding: 12,
-      cornerRadius: 8,
-      titleFont: { weight: '600' },
+      titleColor: 'rgba(255,255,255,0.95)',
+      bodyColor: 'rgba(255,255,255,0.7)',
+      padding: 10,
+      cornerRadius: 6,
+      titleFont: { weight: '600', family: 'Inter', size: 11 },
+      bodyFont: { family: 'Inter', size: 11 },
       displayColors: true,
       boxPadding: 4,
     },
   },
   scales: {
     x: {
-      ticks: { color: 'rgba(255,255,255,0.3)', font: { size: 10 }, maxRotation: 45 },
-      grid: { color: 'rgba(255,255,255,0.03)', drawBorder: false },
+      ticks: { color: 'rgba(255,255,255,0.3)', font: { size: 10, family: 'Inter' }, maxRotation: 45 },
+      grid: { color: 'rgba(255,255,255,0.02)', drawBorder: false },
     },
     y: {
-      ticks: { color: 'rgba(255,255,255,0.3)', font: { size: 10 } },
-      grid: { color: 'rgba(255,255,255,0.04)', drawBorder: false },
+      ticks: { color: 'rgba(255,255,255,0.3)', font: { size: 10, family: 'Inter' } },
+      grid: { color: 'rgba(255,255,255,0.03)', drawBorder: false },
     },
   },
 };
@@ -112,21 +108,20 @@ export default function ChartView({ rows }) {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-xl overflow-hidden mb-4"
-      style={{ border: '1px solid var(--border-1)' }}
+      className="rounded-xl overflow-hidden mb-4 border border-border-1"
     >
       <div
         className="flex items-center justify-between px-4 py-2.5"
         style={{
-          background: 'var(--surface-1)',
+          background: 'var(--surface-05)',
           borderBottom: '1px solid var(--border-1)',
         }}
       >
         <div className="flex items-center gap-2">
           <BarChart3 size={13} className="text-t3" />
-          <span className="text-xs font-semibold text-t2">Visualization</span>
+          <span className="text-xs font-bold text-t2 font-sans">Visualization</span>
         </div>
-        <div className="flex gap-1 p-0.5 rounded-lg" style={{ background: 'var(--surface-1)' }}>
+        <div className="flex gap-1 p-0.5 rounded-lg bg-surface-1 border border-border-1">
           {[
             { key: 'bar', icon: BarChart3, label: 'Bar' },
             { key: 'line', icon: TrendingUp, label: 'Line' },
@@ -134,9 +129,9 @@ export default function ChartView({ rows }) {
             <button
               key={t.key}
               onClick={() => setType(t.key)}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs transition-all"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all focus-ring"
               style={type === t.key
-                ? { background: 'rgba(59,130,246,0.15)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.25)' }
+                ? { background: 'var(--brand-dim)', color: 'var(--brand-light)', border: '1px solid rgba(99,102,241,0.2)' }
                 : { color: 'rgba(255,255,255,0.35)', border: '1px solid transparent' }
               }
               aria-label={`${t.label} chart`}
@@ -147,7 +142,7 @@ export default function ChartView({ rows }) {
           ))}
         </div>
       </div>
-      <div className="p-4" style={{ height: 280 }}>
+      <div className="p-4 bg-white/[0.01]" style={{ height: 280 }}>
         {type === 'bar'
           ? <Bar data={dataset} options={CHART_OPTIONS} />
           : <Line data={dataset} options={CHART_OPTIONS} />}

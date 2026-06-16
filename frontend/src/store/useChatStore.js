@@ -18,7 +18,8 @@ function persistState(chats, activeChatId, savedQueries) {
       ...c,
       messages: c.messages.map(m => ({ ...m, streaming: false, pending: false }))
     }));
-    localStorage.setItem('plainsql_v2', JSON.stringify({ chats: clean, activeChatId, savedQueries }));
+    const sidebarCollapsed = useChatStore?.getState()?.sidebarCollapsed ?? false;
+    localStorage.setItem('plainsql_v2', JSON.stringify({ chats: clean, activeChatId, savedQueries, sidebarCollapsed }));
   } catch { /* quota errors are non-fatal */ }
 }
 
@@ -28,6 +29,14 @@ const useChatStore = create((set, get) => ({
   // ── Boot ──────────────────────────────────────────────
   booted: false,
   setBooted: () => set({ booted: true }),
+
+  // ── Sidebar collapse state ────────────────────────────
+  sidebarCollapsed: persisted?.sidebarCollapsed ?? false,
+  setSidebarCollapsed: (v) => set(s => {
+    // Wait set runs synchronously, so we will persist after state updates
+    setTimeout(() => persistState(get().chats, get().activeChatId, get().savedQueries), 0);
+    return { sidebarCollapsed: v };
+  }),
 
   // ── System status ──────────────────────────────────────
   health: { status: 'checking', latency: null },

@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowUp, Loader2, Sparkles } from 'lucide-react';
+import { ArrowUp, Loader2, Sparkles, X } from 'lucide-react';
 import useChatStore from '../../store/useChatStore';
 
 const QUICK_PROMPTS = [
-  'ARR by segment this quarter',
-  'Churn risk with open P1 tickets',
-  'Slowest SQL executions this week',
+  { text: 'ARR by segment this quarter', label: 'ARR' },
+  { text: 'Churn risk with open P1 tickets', label: 'Churn' },
+  { text: 'Slowest SQL executions this week', label: 'Performance' },
 ];
 
 export default function Composer({ onSubmit }) {
@@ -44,70 +44,51 @@ export default function Composer({ onSubmit }) {
 
   return (
     <div
-      className="flex-shrink-0 px-4 pb-4 pt-3"
+      className="flex-shrink-0 px-4 pb-4 pt-3 relative z-10"
       style={{
-        background: 'rgba(6,9,18,0.9)',
-        backdropFilter: 'blur(20px)',
+        background: 'var(--surface-05)',
         borderTop: '1px solid var(--border-1)',
       }}
     >
-      <div className="mx-auto max-w-5xl">
-        {/* Quick prompts — always visible, dimmed when sending */}
-        <div className={`mb-2 flex gap-2 overflow-x-auto scrollbar-none transition-opacity duration-200 ${isSending ? 'opacity-30 pointer-events-none' : ''}`}>
+      <div className="mx-auto max-w-4xl">
+        {/* Quick prompts */}
+        <div className={`mb-3.5 flex gap-2 overflow-x-auto scrollbar-none transition-opacity duration-200 ${isSending ? 'opacity-30 pointer-events-none' : ''}`}>
           {isSending && (
             <motion.div
               initial={{ opacity: 0, width: 0 }}
               animate={{ opacity: 1, width: 'auto' }}
-              className="flex items-center gap-2 flex-shrink-0 pr-2"
+              className="flex items-center gap-2 flex-shrink-0 pr-2 border-r border-border-1 mr-1"
             >
-              <Loader2 size={12} className="animate-spin text-blue-400" />
-              <span className="text-xs text-t3 whitespace-nowrap">Analyzing...</span>
+              <Loader2 size={12} className="animate-spin text-brand-light" />
+              <span className="text-xs text-t3 font-semibold whitespace-nowrap">Analyzing...</span>
             </motion.div>
           )}
           {QUICK_PROMPTS.map(prompt => (
             <button
-              key={prompt}
+              key={prompt.text}
               type="button"
-              onClick={() => setValue(prompt)}
+              onClick={() => setValue(prompt.text)}
               disabled={isSending}
-              className="flex-shrink-0 rounded-full px-3 py-1.5 text-xs text-t3 transition-all hover:text-t2 disabled:cursor-not-allowed"
-              style={{
-                background: 'var(--surface-1)',
-                border: '1px solid var(--border-1)',
-              }}
-              onMouseEnter={e => {
-                if (!isSending) {
-                  e.currentTarget.style.borderColor = 'rgba(6,182,212,0.25)';
-                  e.currentTarget.style.background = 'rgba(6,182,212,0.06)';
-                }
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.borderColor = 'var(--border-1)';
-                e.currentTarget.style.background = 'var(--surface-1)';
-              }}
+              className="glass-interactive flex-shrink-0 rounded-full px-3 py-1.5 text-xs text-t3 hover:text-t2 font-medium border border-border-1 disabled:cursor-not-allowed"
             >
-              {prompt}
+              <span className="text-brand-light font-bold text-[9px] uppercase tracking-wider mr-1">{prompt.label}</span>
+              {prompt.text}
             </button>
           ))}
         </div>
 
         <form onSubmit={handleSubmit}>
           <div
-            className={`flex items-end gap-3 rounded-2xl px-4 py-3 transition-all duration-200 ${isFocused ? 'border-glow' : ''}`}
-            style={{
-              background: 'var(--surface-2)',
-              border: isFocused || canSend
-                ? '1px solid rgba(59,130,246,0.3)'
-                : '1px solid var(--border-2)',
-              boxShadow: isFocused
-                ? '0 0 0 3px rgba(59,130,246,0.08), 0 8px 32px rgba(0,0,0,0.2)'
-                : '0 8px 32px rgba(0,0,0,0.15)',
-            }}
+            className={`flex items-end gap-3 rounded-2xl px-4 py-3 border transition-all duration-300 ${
+              isFocused 
+                ? 'border-brand/40 bg-surface-hover shadow-[0_0_24px_rgba(99,102,241,0.08),0_8px_32px_rgba(0,0,0,0.25)]' 
+                : 'border-border-2 bg-surface-1 shadow-[0_8px_24px_rgba(0,0,0,0.15)]'
+            }`}
           >
-            <div className="mb-1 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
-              style={{ background: 'var(--surface-1)', border: '1px solid var(--border-1)' }}>
-              <Sparkles size={13} className={value ? 'text-cyan-300' : 'text-t4'} />
+            <div className="mb-1 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-surface-2 border border-border-1 transition-all">
+              <Sparkles size={13} className={value ? 'text-brand-light' : 'text-t4'} />
             </div>
+            
             <textarea
               id="composer-input"
               ref={textareaRef}
@@ -123,37 +104,48 @@ export default function Composer({ onSubmit }) {
               }}
               disabled={isSending}
               rows={1}
-              placeholder="Ask a revenue, support, product, or pipeline question..."
-              className="min-h-[24px] flex-1 resize-none bg-transparent text-sm leading-relaxed text-white outline-none placeholder:text-t4 disabled:opacity-50"
+              placeholder="Ask a question about SaaS metrics, tickets, ARR, or performance..."
+              className="min-h-[24px] flex-1 resize-none bg-transparent text-sm leading-relaxed text-white outline-none placeholder:text-t4 disabled:opacity-50 font-medium"
               aria-label="Type your query"
             />
+
+            {value && (
+              <button 
+                type="button"
+                onClick={() => { setValue(''); textareaRef.current?.focus(); }}
+                className="mb-1.5 w-6 h-6 rounded-full hover:bg-white/5 flex items-center justify-center text-t4 hover:text-white"
+              >
+                <X size={12} />
+              </button>
+            )}
+
             <motion.button
               type="submit"
               disabled={!canSend}
               whileHover={canSend ? { scale: 1.05 } : {}}
               whileTap={canSend ? { scale: 0.95 } : {}}
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl transition-all duration-200 disabled:opacity-25"
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl transition-all duration-200 disabled:opacity-25"
               style={{
                 background: canSend
-                  ? 'linear-gradient(135deg, #2563eb, #0891b2)'
-                  : 'var(--surface-2)',
+                  ? 'linear-gradient(135deg, var(--brand), var(--brand-cyan))'
+                  : 'var(--surface-3)',
                 boxShadow: canSend
-                  ? '0 4px 16px rgba(59,130,246,0.3)'
+                  ? '0 4px 16px rgba(99,102,241,0.25)'
                   : 'none',
               }}
               aria-label="Send query"
             >
-              <ArrowUp size={15} className="text-white" />
+              <ArrowUp size={14} className="text-white" />
             </motion.button>
           </div>
         </form>
 
-        <div className="mt-1.5 flex justify-between px-1">
-          <span className="text-xs text-t4">
-            Enter to run · Shift+Enter for new line
+        <div className="mt-2 flex justify-between px-1 font-medium">
+          <span className="text-[10px] text-t4">
+            Press <kbd className="bg-white/[0.04] px-1 py-0.5 rounded font-mono text-[9px] border border-white/[0.06]">Enter</kbd> to run · <kbd className="bg-white/[0.04] px-1 py-0.5 rounded font-mono text-[9px] border border-white/[0.06]">Shift+Enter</kbd> for newline
           </span>
-          <span className="hidden text-xs text-t5 sm:inline">
-            Validated SQL · Read-only
+          <span className="hidden text-[10px] text-t4 sm:inline flex items-center gap-1">
+            <span className="w-1 h-1 rounded-full bg-success inline-block" /> Read-only sandbox environment
           </span>
         </div>
       </div>

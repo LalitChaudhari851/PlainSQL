@@ -53,40 +53,39 @@ export default function ResultTable({ rows }) {
 
   const handleCopyJSON = async () => {
     await navigator.clipboard.writeText(JSON.stringify(rows, null, 2)).catch(() => {});
-    addToast('Result JSON copied', 'success');
+    addToast('Result JSON copied to clipboard', 'success');
   };
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-xl overflow-hidden mb-4"
-      style={{ border: '1px solid var(--border-1)' }}
+      className="rounded-xl overflow-hidden mb-4 border border-border-1"
     >
       {/* Header */}
       <div
         className="flex items-center justify-between px-4 py-2.5"
         style={{
-          background: 'var(--surface-1)',
+          background: 'var(--surface-05)',
           borderBottom: '1px solid var(--border-1)',
         }}
       >
         <div className="flex items-center gap-2">
           <Table2 size={13} className="text-t3" />
-          <span className="text-xs font-semibold text-t2">Results</span>
-          <span className="text-xs font-mono text-t4 tabular-nums">{rows.length} rows</span>
+          <span className="text-xs font-bold text-t2">Results</span>
+          <span className="text-[10px] text-t4 font-mono font-medium bg-white/[0.03] border border-white/[0.04] px-1.5 py-0.2 rounded-sm tabular-nums">{rows.length} rows</span>
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={handleCopyJSON}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-t3 hover:text-white hover:bg-white/10 transition-all"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-t3 hover:text-white hover:bg-white/10 transition-all"
             aria-label="Copy as JSON"
           >
             <Copy size={11} /> <span className="hidden sm:inline">JSON</span>
           </button>
           <button
             onClick={() => downloadCSV(rows)}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-t3 hover:text-white hover:bg-white/10 transition-all"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-t3 hover:text-white hover:bg-white/10 transition-all"
             aria-label="Download CSV"
           >
             <Download size={11} /> <span className="hidden sm:inline">CSV</span>
@@ -94,24 +93,24 @@ export default function ResultTable({ rows }) {
         </div>
       </div>
 
-      {/* Table with zebra striping + sticky header */}
+      {/* Table container */}
       <div className="overflow-x-auto max-h-[420px]">
         <table className="w-full text-xs table-zebra">
           <thead className="sticky top-0 z-10">
-            <tr style={{ background: 'rgba(6,9,18,0.95)', borderBottom: '1px solid var(--border-1)' }}>
+            <tr style={{ background: 'var(--surface-0)', borderBottom: '1px solid var(--border-1)' }}>
               {cols.map(col => (
                 <th
                   key={col}
                   onClick={() => handleSort(col)}
                   className={`
-                    px-4 py-2.5 font-semibold text-t3 cursor-pointer
+                    px-4 py-2.5 font-bold text-t3 cursor-pointer
                     hover:text-t2 transition-colors whitespace-nowrap select-none
                     ${numericCols.has(col) ? 'text-right' : 'text-left'}
                   `}
                 >
                   <div className={`flex items-center gap-1 ${numericCols.has(col) ? 'justify-end' : ''}`}>
-                    {col.replace(/_/g, ' ')}
-                    <ArrowUpDown size={9} className={sortCol === col ? 'text-primary' : 'text-t5'} />
+                    <span>{col.replace(/_/g, ' ')}</span>
+                    <ArrowUpDown size={9} className={sortCol === col ? 'text-brand-light' : 'text-t5'} />
                   </div>
                 </th>
               ))}
@@ -122,7 +121,7 @@ export default function ResultTable({ rows }) {
               <tr
                 key={ri}
                 className="transition-colors"
-                style={{ borderBottom: '1px solid var(--border-1)' }}
+                style={{ borderBottom: '1px solid var(--border-0)' }}
               >
                 {cols.map(col => (
                   <td
@@ -141,35 +140,34 @@ export default function ResultTable({ rows }) {
         </table>
       </div>
 
-      {/* Pagination — improved with page numbers */}
+      {/* Pagination */}
       {totalPages > 1 && (
         <div
           className="flex items-center justify-between px-4 py-2.5"
           style={{
-            background: 'var(--surface-1)',
+            background: 'var(--surface-05)',
             borderTop: '1px solid var(--border-1)',
           }}
         >
-          <span className="text-xs text-t4 font-mono tabular-nums">
+          <span className="text-xs text-t4 font-mono font-medium tabular-nums">
             {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, rows.length)} of {rows.length}
           </span>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
             <button
               disabled={page === 0}
               onClick={() => setPage(p => p - 1)}
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-t3 hover:text-white hover:bg-white/10 disabled:opacity-25 disabled:cursor-not-allowed transition-all"
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-t3 hover:text-white hover:bg-white/10 disabled:opacity-25 disabled:cursor-not-allowed transition-all focus-ring"
               aria-label="Previous page"
             >
               <ChevronLeft size={14} />
             </button>
-            {/* Page indicator */}
-            <span className="text-xs text-t3 font-mono tabular-nums px-2">
+            <span className="text-xs text-t3 font-mono font-bold tabular-nums px-1 select-none">
               {page + 1} / {totalPages}
             </span>
             <button
               disabled={page >= totalPages - 1}
               onClick={() => setPage(p => p + 1)}
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-t3 hover:text-white hover:bg-white/10 disabled:opacity-25 disabled:cursor-not-allowed transition-all"
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-t3 hover:text-white hover:bg-white/10 disabled:opacity-25 disabled:cursor-not-allowed transition-all focus-ring"
               aria-label="Next page"
             >
               <ChevronRight size={14} />

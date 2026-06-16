@@ -472,7 +472,7 @@ def _register_legacy_chat(app: FastAPI, orchestrator, tracer, rate_limiter, inpu
                         sql = event.get("sql", "")
 
                     # Forward every event to the frontend as SSE
-                    yield f"data: {json_mod.dumps(event, default=str)}\\n\\n"
+                    yield f"data: {json_mod.dumps(event, default=str)}\n\n"
 
                 # ── Post-pipeline: metrics, cache, persistence ──
                 elapsed_ms = last_event.get("total_time_ms", round((time_mod.perf_counter() - start) * 1000, 2))
@@ -522,8 +522,8 @@ def _register_legacy_chat(app: FastAPI, orchestrator, tracer, rate_limiter, inpu
                     latency_ms=elapsed_ms, intent="unknown",
                     success=False, error_agent="pipeline",
                 )
-                yield f"data: {json_mod.dumps({'type': 'error', 'error': 'An internal error occurred. Please try again.'})}\\n\\n"
-                yield f"data: {json_mod.dumps({'type': 'done', 'total_time_ms': elapsed_ms, 'error': True})}\\n\\n"
+                yield f"data: {json_mod.dumps({'type': 'error', 'error': 'An internal error occurred. Please try again.'})}\n\n"
+                yield f"data: {json_mod.dumps({'type': 'done', 'total_time_ms': elapsed_ms, 'error': True})}\n\n"
 
             finally:
                 if dedup and query_hash:

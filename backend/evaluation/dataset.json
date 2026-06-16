@@ -138,7 +138,7 @@
     {
         "id": "eval_018",
         "question": "Show monthly invoice volume trends",
-        "expected_sql": "SELECT DATE_FORMAT(invoice_date, '%Y-%m') AS month, COUNT(*) AS invoice_count, SUM(total) AS monthly_revenue FROM invoices GROUP BY month ORDER BY month",
+        "expected_sql": "SELECT DATE_FORMAT(invoice_date, '%Y-%m') AS month, COUNT(*) AS invoice_count, SUM(total) AS monthly_revenue FROM invoices GROUP BY DATE_FORMAT(invoice_date, '%Y-%m') ORDER BY DATE_FORMAT(invoice_date, '%Y-%m')",
         "difficulty": "medium",
         "category": "aggregation",
         "expected_tables": ["invoices"]
@@ -322,7 +322,7 @@
     {
         "id": "eval_041",
         "question": "Show quarterly invoice revenue trends with quarter-over-quarter growth",
-        "expected_sql": "SELECT YEAR(invoice_date) AS yr, QUARTER(invoice_date) AS qtr, SUM(total) AS quarterly_revenue FROM invoices WHERE status = 'paid' GROUP BY yr, qtr ORDER BY yr, qtr",
+        "expected_sql": "SELECT YEAR(invoice_date) AS yr, QUARTER(invoice_date) AS qtr, SUM(total) AS quarterly_revenue FROM invoices WHERE status = 'paid' GROUP BY YEAR(invoice_date), QUARTER(invoice_date) ORDER BY YEAR(invoice_date), QUARTER(invoice_date)",
         "difficulty": "hard",
         "category": "aggregation",
         "expected_tables": ["invoices"]
@@ -398,5 +398,13 @@
         "difficulty": "hard",
         "category": "aggregation",
         "expected_tables": ["accounts", "subscriptions", "support_tickets"]
+    },
+    {
+        "id": "eval_051",
+        "question": "Show net revenue retention by customer segment for the last 4 quarters",
+        "expected_sql": "SELECT a.segment, YEAR(s.start_date) AS yr, QUARTER(s.start_date) AS qtr, SUM(CASE WHEN s.status = 'active' THEN s.contracted_arr ELSE 0 END) AS active_arr, SUM(s.contracted_arr) AS total_arr, ROUND(SUM(CASE WHEN s.status = 'active' THEN s.contracted_arr ELSE 0 END) * 100.0 / SUM(s.contracted_arr), 2) AS nrr_pct FROM subscriptions s JOIN accounts a ON s.account_id = a.account_id WHERE s.start_date >= DATE_SUB((SELECT MAX(start_date) FROM subscriptions), INTERVAL 1 YEAR) GROUP BY a.segment, YEAR(s.start_date), QUARTER(s.start_date) ORDER BY yr DESC, qtr DESC, nrr_pct DESC",
+        "difficulty": "hard",
+        "category": "aggregation",
+        "expected_tables": ["accounts", "subscriptions"]
     }
 ]

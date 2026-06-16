@@ -17,32 +17,32 @@ function StepDot({ step, isDone, isActive, stageText }) {
         className="grid h-5 w-5 place-items-center rounded-md transition-all duration-300"
         style={{
           background: isDone
-            ? 'rgba(34,197,94,0.12)'
+            ? 'rgba(52,211,153,0.12)'
             : isActive
-              ? 'rgba(59,130,246,0.15)'
+              ? 'var(--brand-dim)'
               : 'var(--surface-1)',
           border: `1px solid ${
             isDone
-              ? 'rgba(34,197,94,0.25)'
+              ? 'rgba(52,211,153,0.25)'
               : isActive
-                ? 'rgba(59,130,246,0.3)'
+                ? 'rgba(99,102,241,0.3)'
                 : 'var(--border-1)'
           }`,
-          boxShadow: isActive ? '0 0 8px rgba(59,130,246,0.15)' : 'none',
+          boxShadow: isActive ? '0 0 8px rgba(99,102,241,0.15)' : 'none',
         }}
       >
         {isDone ? (
-          <CheckCircle2 size={11} className="text-emerald-400" />
+          <CheckCircle2 size={11} className="text-success" />
         ) : isActive ? (
           <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}>
-            <Loader2 size={11} className="text-blue-400" />
+            <Loader2 size={11} className="text-brand-light" />
           </motion.div>
         ) : (
           <Icon size={11} className="text-t4" />
         )}
       </div>
-      <span className={`text-[11px] font-medium transition-colors duration-200 ${
-        isDone ? 'text-emerald-300/70' : isActive ? 'text-blue-300' : 'text-t4'
+      <span className={`text-[11px] font-semibold transition-colors duration-200 ${
+        isDone ? 'text-success/90' : isActive ? 'text-brand-light font-bold' : 'text-t4'
       }`}>
         {isActive && stageText ? stageText : step.label}
       </span>
@@ -55,10 +55,9 @@ function Connector({ isDone, isActive }) {
     <div className="hidden sm:block h-px flex-1 min-w-3 max-w-8 mx-0.5 relative overflow-hidden rounded-full"
       style={{ background: 'var(--border-1)' }}
     >
-      {/* Animated fill */}
       <motion.div
         className="absolute inset-y-0 left-0 rounded-full"
-        style={{ background: isDone ? 'rgba(34,197,94,0.4)' : 'rgba(59,130,246,0.4)' }}
+        style={{ background: isDone ? 'rgba(52,211,153,0.4)' : 'rgba(99,102,241,0.4)' }}
         initial={{ width: '0%' }}
         animate={{ width: isDone || isActive ? '100%' : '0%' }}
         transition={{ duration: 0.4, ease: 'easeOut' }}
@@ -72,12 +71,12 @@ export default function PipelineTrace({ activeStep = -1, isChatMode = false, sta
     return (
       <div className="mb-4 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1"
         style={{
-          background: 'rgba(6,182,212,0.06)',
-          border: '1px solid rgba(6,182,212,0.15)',
+          background: 'var(--brand-dim)',
+          border: '1px solid rgba(99,102,241,0.2)',
         }}
       >
-        <Sparkles size={11} className="text-cyan-300" />
-        <span className="text-[11px] font-medium" style={{ color: 'rgba(103,232,249,0.7)' }}>Conversational</span>
+        <Sparkles size={11} className="text-brand-light" />
+        <span className="text-[10px] font-bold uppercase tracking-wider text-brand-light">Conversational</span>
       </div>
     );
   }
@@ -91,7 +90,7 @@ export default function PipelineTrace({ activeStep = -1, isChatMode = false, sta
       className="mb-4 rounded-xl px-3 py-2.5"
       style={{
         background: 'var(--surface-1)',
-        border: `1px solid ${allDone ? 'rgba(34,197,94,0.15)' : 'var(--border-1)'}`,
+        border: `1px solid ${allDone ? 'rgba(52,211,153,0.15)' : 'var(--border-1)'}`,
       }}
     >
       {/* Desktop: horizontal */}
@@ -107,13 +106,12 @@ export default function PipelineTrace({ activeStep = -1, isChatMode = false, sta
             </div>
           );
         })}
-        {/* Completion badge */}
         {allDone && (
           <motion.div
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
-            style={{ background: 'rgba(34,197,94,0.1)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.2)' }}
+            className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide"
+            style={{ background: 'rgba(52,211,153,0.1)', color: 'var(--success)', border: '1px solid rgba(52,211,153,0.2)' }}
           >
             <CheckCircle2 size={10} />
             Complete
@@ -132,7 +130,7 @@ export default function PipelineTrace({ activeStep = -1, isChatMode = false, sta
               <div
                 className="w-0.5 h-full min-h-[16px] rounded-full flex-shrink-0"
                 style={{
-                  background: isDone ? 'rgba(34,197,94,0.3)' : isActive ? 'rgba(59,130,246,0.3)' : 'var(--border-1)',
+                  background: isDone ? 'rgba(52,211,153,0.3)' : isActive ? 'rgba(99,102,241,0.3)' : 'var(--border-1)',
                 }}
               />
               <StepDot step={step} isDone={isDone} isActive={isActive} stageText={isActive ? stageText : ''} />

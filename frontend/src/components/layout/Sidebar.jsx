@@ -1,13 +1,76 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, MessageSquare, Bookmark, Trash2, X, Database, ChevronDown, ChevronRight, Sparkles } from 'lucide-react';
+import { 
+  Plus, 
+  MessageSquare, 
+  Bookmark, 
+  Trash2, 
+  X, 
+  Database, 
+  ChevronRight, 
+  Sparkles, 
+  Search, 
+  PanelLeftClose, 
+  PanelLeft, 
+  Settings, 
+  ArrowRight,
+  Hash
+} from 'lucide-react';
 import useChatStore from '../../store/useChatStore';
 
-function SectionHeader({ title, count, collapsed, onToggle }) {
+const TABLE_GROUPS = {
+  'accounts': 'Core SaaS',
+  'contacts': 'Core SaaS',
+  'workspaces': 'Core SaaS',
+  'workspace_users': 'Core SaaS',
+  
+  'departments': 'HR & Staff',
+  'employees': 'HR & Staff',
+  
+  'plans': 'Billing',
+  'products': 'Billing',
+  'feature_catalog': 'Billing',
+  'subscriptions': 'Billing',
+  'invoices': 'Billing',
+  'payments': 'Billing',
+  
+  'opportunities': 'Sales',
+  
+  'support_tickets': 'Support & Ops',
+  'ticket_events': 'Support & Ops',
+  'incidents': 'Support & Ops',
+  'product_usage_daily': 'Support & Ops',
+  'query_audit_log': 'Support & Ops',
+};
+
+const MOCK_COLUMNS = {
+  departments: ['id', 'name', 'manager_id', 'location'],
+  employees: ['id', 'first_name', 'last_name', 'email', 'department_id', 'salary', 'hire_date'],
+  plans: ['id', 'name', 'price', 'billing_interval', 'features'],
+  products: ['id', 'name', 'sku', 'price', 'status'],
+  feature_catalog: ['id', 'name', 'code', 'status'],
+  accounts: ['id', 'name', 'domain', 'industry', 'owner_id', 'created_at'],
+  contacts: ['id', 'account_id', 'first_name', 'last_name', 'email', 'phone'],
+  workspaces: ['id', 'account_id', 'name', 'slug', 'created_at'],
+  workspace_users: ['workspace_id', 'user_id', 'role', 'joined_at'],
+  subscriptions: ['id', 'account_id', 'plan_id', 'status', 'start_date', 'end_date'],
+  invoices: ['id', 'subscription_id', 'amount', 'due_date', 'status'],
+  payments: ['id', 'invoice_id', 'amount', 'payment_method', 'status', 'created_at'],
+  opportunities: ['id', 'account_id', 'name', 'amount', 'stage', 'closed_at'],
+  product_usage_daily: ['date', 'workspace_id', 'queries_run', 'active_users'],
+  support_tickets: ['id', 'account_id', 'subject', 'status', 'priority', 'created_at'],
+  ticket_events: ['id', 'ticket_id', 'event_type', 'created_at'],
+  incidents: ['id', 'title', 'severity', 'status', 'created_at'],
+  query_audit_log: ['id', 'user_id', 'query_text', 'execution_time_ms', 'status'],
+};
+
+function SectionHeader({ title, count, collapsed, onToggle, isSidebarCollapsed }) {
+  if (isSidebarCollapsed) return <div className="h-px bg-border-1 my-3 mx-2" />;
+
   return (
     <button
       onClick={onToggle}
-      className="flex items-center justify-between px-3 py-2 w-full group"
+      className="flex items-center justify-between px-3 py-2 w-full group mt-4 first:mt-0"
     >
       <div className="flex items-center gap-1.5">
         {onToggle && (
@@ -16,10 +79,10 @@ function SectionHeader({ title, count, collapsed, onToggle }) {
             className={`text-t4 transition-transform duration-200 ${!collapsed ? 'rotate-90' : ''}`}
           />
         )}
-        <span className="text-xs font-semibold uppercase tracking-wider text-t4 group-hover:text-t3 transition-colors">{title}</span>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-t4 group-hover:text-t3 transition-colors">{title}</span>
       </div>
       {count != null && (
-        <span className="text-xs text-t4 font-mono tabular-nums">{count}</span>
+        <span className="text-[10px] text-t4 font-mono tabular-nums px-1.5 py-0.5 rounded bg-white/[0.03] border border-white/[0.04]">{count}</span>
       )}
     </button>
   );
@@ -27,33 +90,22 @@ function SectionHeader({ title, count, collapsed, onToggle }) {
 
 function EmptyChats({ onNewChat }) {
   return (
-    <div className="px-4 py-6 text-center">
-      <div className="w-10 h-10 mx-auto mb-3 rounded-xl flex items-center justify-center"
+    <div className="px-3 py-6 text-center">
+      <div className="w-9 h-9 mx-auto mb-2.5 rounded-xl flex items-center justify-center"
         style={{ background: 'var(--surface-2)', border: '1px solid var(--border-1)' }}>
-        <Sparkles size={16} className="text-t3" />
+        <Sparkles size={14} className="text-t3" />
       </div>
-      <p className="text-t3 text-xs mb-1 font-medium">No conversations yet</p>
-      <p className="text-t4 text-xs mb-3">Start your first AI-powered analysis</p>
+      <p className="text-t3 text-xs mb-0.5 font-semibold">No conversations</p>
+      <p className="text-t4 text-[11px] mb-3 leading-normal">Start your first AI analysis</p>
       <button
         onClick={onNewChat}
-        className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-        style={{ color: '#60a5fa', background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)' }}
+        className="text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors border-glow"
+        style={{ color: '#818cf8', background: 'var(--brand-dim)', border: '1px solid rgba(99,102,241,0.2)' }}
       >
-        New chat
+        New analysis
       </button>
     </div>
   );
-}
-
-function timeAgo(timestamp) {
-  if (!timestamp) return '';
-  const diff = Date.now() - timestamp;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'now';
-  if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h`;
-  return `${Math.floor(hrs / 24)}d`;
 }
 
 export default function Sidebar({ open, onClose }) {
@@ -67,11 +119,30 @@ export default function Sidebar({ open, onClose }) {
   const selectChat = useChatStore(s => s.selectChat);
   const deleteChat = useChatStore(s => s.deleteChat);
   const setSelectedSchema = useChatStore(s => s.setSelectedSchema);
-  const addToast = useChatStore(s => s.addToast);
+  const sidebarCollapsed = useChatStore(s => s.sidebarCollapsed);
+  const setSidebarCollapsed = useChatStore(s => s.setSidebarCollapsed);
 
+  const [searchQuery, setSearchQuery] = useState('');
   const [hoveredChat, setHoveredChat] = useState(null);
   const [schemaCollapsed, setSchemaCollapsed] = useState(false);
   const [savedCollapsed, setSavedCollapsed] = useState(false);
+  
+  const searchInputRef = useRef(null);
+
+  // Global Ctrl+K shortcut to focus search
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        if (sidebarCollapsed) {
+          setSidebarCollapsed(false);
+        }
+        setTimeout(() => searchInputRef.current?.focus(), 50);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [sidebarCollapsed, setSidebarCollapsed]);
 
   const handleSavedQuery = (query) => {
     window.dispatchEvent(new CustomEvent('plainsql:submit', { detail: { query } }));
@@ -82,6 +153,25 @@ export default function Sidebar({ open, onClose }) {
     newChat();
     if (open) onClose?.();
   };
+
+  // Filter logic
+  const filteredTables = schemaTables.filter(t => 
+    t.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  const filteredChats = chats.filter(c => 
+    c.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  const filteredSaved = savedQueries.filter(q => 
+    q.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Group schema tables
+  const groupedTables = {};
+  filteredTables.forEach(t => {
+    const groupName = TABLE_GROUPS[t] || 'Other';
+    if (!groupedTables[groupName]) groupedTables[groupName] = [];
+    groupedTables[groupName].push(t);
+  });
 
   return (
     <>
@@ -99,226 +189,416 @@ export default function Sidebar({ open, onClose }) {
 
       <motion.aside
         initial={false}
-        animate={{ x: open ? 0 : undefined }}
+        animate={{ 
+          width: sidebarCollapsed ? 64 : 280,
+          x: open ? 0 : undefined
+        }}
+        transition={{ duration: 250, ease: [0.16, 1, 0.3, 1] }}
         className={`
-          flex flex-col h-full w-[var(--sidebar-w)] flex-shrink-0
+          flex flex-col h-full flex-shrink-0
           border-r
           fixed lg:relative z-40 lg:z-auto
           transition-transform lg:translate-x-0
           ${open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
         style={{
-          background: 'rgba(6,9,18,0.97)',
-          backdropFilter: 'blur(24px)',
+          background: 'var(--surface-0)',
           borderColor: 'var(--border-1)',
         }}
       >
         {/* Brand + Mobile close */}
-        <div className="flex items-center gap-3 px-4 py-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 shadow-md"
-            style={{ background: 'linear-gradient(135deg, #3b82f6, #06b6d4)' }}>
-            <span className="text-white font-black text-sm">S</span>
+        <div className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2 py-4' : 'justify-between px-4 py-4'}`} style={{ borderBottom: '1px solid var(--border-1)' }}>
+          <div className="flex items-center gap-3 min-w-0">
+            <div 
+              onClick={() => sidebarCollapsed && setSidebarCollapsed(false)}
+              className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 shadow-lg cursor-pointer bg-glow border-glow"
+              style={{ background: 'linear-gradient(135deg, var(--brand), var(--brand-cyan))' }}
+            >
+              <span className="text-white font-extrabold text-sm tracking-tight">S</span>
+            </div>
+            {!sidebarCollapsed && (
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-white text-sm leading-tight tracking-tight">PlainSQL</p>
+                <p className="text-[10px] text-t4 font-semibold uppercase tracking-wider">AI Data Platform</p>
+              </div>
+            )}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-bold text-white text-sm leading-tight">PlainSQL</p>
-            <p className="text-t4 text-xs">AI Data Copilot</p>
-          </div>
-          {/* Mobile close button */}
-          <button
-            onClick={onClose}
-            className="lg:hidden w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-white/10 focus-ring"
-            aria-label="Close sidebar"
-          >
-            <X size={14} className="text-t3" />
-          </button>
-          {/* New chat */}
-          <button
-            onClick={handleNewChat}
-            className="hidden lg:flex w-7 h-7 rounded-lg items-center justify-center transition-colors hover:bg-white/10 focus-ring"
-            title="New chat"
-            aria-label="New chat"
-          >
-            <Plus size={14} className="text-t3" />
-          </button>
+          
+          {!sidebarCollapsed && (
+            <div className="flex items-center gap-1">
+              {/* New chat */}
+              <button
+                onClick={handleNewChat}
+                className="hidden lg:flex w-7 h-7 rounded-lg items-center justify-center transition-colors hover:bg-white/5 text-t3 hover:text-t2 focus-ring"
+                title="New chat (Ctrl+N)"
+                aria-label="New chat"
+              >
+                <Plus size={15} />
+              </button>
+              {/* Mobile close button */}
+              <button
+                onClick={onClose}
+                className="lg:hidden w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-white/5 text-t3 hover:text-t2 focus-ring"
+                aria-label="Close sidebar"
+              >
+                <X size={15} />
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Scrollable body */}
-        <div className="flex-1 overflow-y-auto scrollbar-none py-2">
-
-          {/* New Chat Button */}
-          <div className="px-3 pb-3">
+        {/* Search Input Area */}
+        {!sidebarCollapsed ? (
+          <div className="px-3 pt-3">
+            <div className="sidebar-search flex items-center gap-2 px-2.5 py-1.5 text-t3 focus-within:text-t2 relative">
+              <Search size={13} className="text-t4 flex-shrink-0" />
+              <input
+                ref={searchInputRef}
+                id="sidebar-search-input"
+                type="text"
+                placeholder="Search resources..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="bg-transparent border-0 outline-none text-xs w-full text-white placeholder-t4"
+              />
+              {searchQuery ? (
+                <button 
+                  onClick={() => setSearchQuery('')}
+                  className="w-4 h-4 rounded-full hover:bg-white/10 flex items-center justify-center text-t4 hover:text-white"
+                >
+                  <X size={10} />
+                </button>
+              ) : (
+                <span className="hidden sm:inline text-[9px] font-mono tracking-wider bg-white/[0.04] border border-white/[0.06] text-t4 px-1 py-0.5 rounded leading-none">⌘K</span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex justify-center pt-3 px-2">
             <button
-              onClick={handleNewChat}
-              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium text-t2 transition-all hover:text-white focus-ring"
-              style={{
-                background: 'var(--surface-1)',
-                border: '1px dashed var(--border-2)',
-              }}
+              onClick={() => { setSidebarCollapsed(false); setTimeout(() => searchInputRef.current?.focus(), 100); }}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-t4 hover:text-t2 hover:bg-white/5 transition-all focus-ring"
+              title="Search (Ctrl+K)"
             >
-              <Plus size={14} />
-              New chat
+              <Search size={15} />
             </button>
           </div>
+        )}
 
-          {/* Schema */}
-          <SectionHeader
-            title="Schema"
-            count={`${schemaTables.length} tables`}
-            collapsed={schemaCollapsed}
-            onToggle={() => setSchemaCollapsed(v => !v)}
-          />
-          <AnimatePresence initial={false}>
-            {!schemaCollapsed && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden"
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-y-auto scrollbar-none py-2 px-1">
+          
+          {/* New Chat Button (Standard size) */}
+          {!sidebarCollapsed ? (
+            <div className="px-2 pb-2">
+              <button
+                onClick={handleNewChat}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-t2 hover:text-white transition-all border border-dashed border-border-2 hover:border-brand/40 bg-surface-1 focus-ring"
               >
-                <div className="px-3 pb-3">
-                  {/* All tables button */}
-                  <button
-                    onClick={() => { setSelectedSchema('default'); addToast('Context: All tables', 'info'); }}
-                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-all mb-1 ${
-                      selectedSchema === 'default'
-                        ? 'bg-primary/10 text-white font-medium border border-primary/20'
-                        : 'text-t2 hover:bg-white/[0.04] border border-transparent'
-                    }`}
-                  >
-                    <Database size={12} className={selectedSchema === 'default' ? 'text-primary' : 'text-t4'} />
-                    All tables
-                    <span className="ml-auto text-xs text-t4 font-mono tabular-nums">{schemaTables.length}</span>
-                  </button>
+                <Plus size={13} className="text-brand-light" />
+                New analysis
+              </button>
+            </div>
+          ) : (
+            <div className="flex justify-center pb-2 px-1">
+              <button
+                onClick={handleNewChat}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-brand-light hover:text-white bg-brand-dim border border-brand/20 hover:bg-brand/25 transition-all focus-ring"
+                title="New analysis (Ctrl+N)"
+              >
+                <Plus size={15} />
+              </button>
+            </div>
+          )}
 
-                  {/* Scrollable table list */}
-                  <div className="overflow-y-auto scrollbar-none space-y-0.5 rounded-lg p-1"
-                    style={{ background: 'var(--surface-1)', border: '1px solid var(--border-1)' }}>
-                    {schemaTables.map(t => (
+          {/* Schema Explorer */}
+          {!sidebarCollapsed ? (
+            <>
+              <SectionHeader
+                title="Schema"
+                count={filteredTables.length}
+                collapsed={schemaCollapsed}
+                onToggle={() => setSchemaCollapsed(v => !v)}
+              />
+              <AnimatePresence initial={false}>
+                {!schemaCollapsed && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-2 pb-2 space-y-1">
+                      {/* All tables selector */}
                       <button
-                        key={t}
-                        onClick={() => { setSelectedSchema(t); addToast(`Context: ${t}`, 'info'); }}
-                        className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs text-left transition-all ${
-                          selectedSchema === t
-                            ? 'bg-primary/10 text-white font-medium'
-                            : 'text-t3 hover:bg-white/[0.05] hover:text-t2'
+                        onClick={() => setSelectedSchema('default')}
+                        className={`nav-item relative w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-left ${
+                          selectedSchema === 'default'
+                            ? 'active text-white font-medium'
+                            : 'text-t2'
                         }`}
                       >
-                        <span className="w-1 h-1 rounded-full flex-shrink-0"
-                          style={{ background: selectedSchema === t ? '#3b82f6' : 'rgba(255,255,255,0.15)' }} />
-                        {t}
+                        <Database size={12} className={selectedSchema === 'default' ? 'text-brand-light' : 'text-t4'} />
+                        <span>All tables</span>
+                        <span className="ml-auto text-[10px] text-t4 font-mono tabular-nums bg-white/[0.02] border border-white/[0.04] px-1.5 py-0.2 rounded-sm">{schemaTables.length}</span>
                       </button>
-                    ))}
-                  </div>
-                  <p className="text-t4 text-xs mt-1.5 px-1 flex items-center gap-1">
-                    <Database size={9} />
-                    Read-only access · AI-indexed
-                  </p>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+
+                      {/* Grouped Table Explorer */}
+                      <div className="space-y-3 mt-2 pl-1">
+                        {Object.entries(groupedTables).map(([group, tables]) => (
+                          <div key={group} className="space-y-1">
+                            <span className="text-[9px] font-bold text-t4 uppercase tracking-wider block pl-2">{group}</span>
+                            <div className="space-y-0.5">
+                              {tables.map(t => {
+                                const isSel = selectedSchema === t;
+                                const cols = MOCK_COLUMNS[t]?.length || 4;
+                                return (
+                                  <button
+                                    key={t}
+                                    onClick={() => setSelectedSchema(t)}
+                                    className={`nav-item relative w-full flex items-center justify-between px-2.5 py-1.5 text-xs text-left ${
+                                      isSel ? 'active text-white font-medium' : 'text-t3 hover:text-t2'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <span className={`w-1 h-1 rounded-full flex-shrink-0 ${isSel ? 'bg-brand-light shadow-[0_0_6px_rgba(99,102,241,0.6)]' : 'bg-white/20'}`} />
+                                      <span className="truncate">{t}</span>
+                                    </div>
+                                    <span className="text-[9px] font-mono text-t4 opacity-60 flex-shrink-0 group-hover:opacity-100 transition-opacity pr-1 flex items-center gap-0.5">
+                                      <Hash size={8} /> {cols}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </>
+          ) : (
+            <div className="flex justify-center py-2">
+              <button
+                onClick={() => { setSidebarCollapsed(false); setSchemaCollapsed(false); }}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all focus-ring ${
+                  selectedSchema !== 'default' ? 'text-brand-light bg-brand-dim border border-brand/20' : 'text-t4 hover:text-t2 hover:bg-white/5'
+                }`}
+                title={selectedSchema === 'default' ? "Database schema (All tables)" : `Selected table: ${selectedSchema}`}
+              >
+                <Database size={15} />
+              </button>
+            </div>
+          )}
 
           {/* History */}
-          <SectionHeader title="History" count={chats.length || null} />
-          <div className="px-2 space-y-0.5 pb-3">
-            {chats.length === 0 && (
-              <EmptyChats onNewChat={handleNewChat} />
-            )}
-            {chats.map(chat => {
-              const isActive = chat.id === activeChatId;
-              const queryCount = chat.messages.filter(m => m.role === 'user').length;
-              return (
-                <motion.div
-                  key={chat.id}
-                  layout
-                  onHoverStart={() => setHoveredChat(chat.id)}
-                  onHoverEnd={() => setHoveredChat(null)}
-                  onClick={() => { selectChat(chat.id); if (open) onClose?.(); }}
-                  className={`
-                    group flex items-center gap-2 px-3 py-2.5 rounded-xl cursor-pointer transition-all relative
-                    ${isActive
-                      ? 'bg-primary/10 border border-primary/20'
-                      : 'hover:bg-white/[0.04] border border-transparent'
-                    }
-                  `}
-                >
-                  {/* Active indicator bar */}
-                  {isActive && (
-                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full bg-primary" />
-                  )}
-                  <MessageSquare size={13} className={isActive ? 'text-primary flex-shrink-0' : 'text-t4 flex-shrink-0'} />
-                  <div className="flex-1 min-w-0">
-                    <span className={`text-xs truncate block ${isActive ? 'text-white font-medium' : 'text-t2'}`}>
-                      {chat.title}
-                    </span>
-                  </div>
-                  {queryCount > 0 && hoveredChat !== chat.id && (
-                    <span className="text-t4 text-xs font-mono flex-shrink-0 tabular-nums">{queryCount}</span>
-                  )}
-                  {hoveredChat === chat.id && (
-                    <button
-                      onClick={e => { e.stopPropagation(); deleteChat(chat.id); }}
-                      className="flex-shrink-0 w-5 h-5 rounded flex items-center justify-center hover:bg-danger/20 transition-colors"
-                      aria-label={`Delete chat: ${chat.title}`}
+          {!sidebarCollapsed ? (
+            <>
+              <SectionHeader title="Conversations" count={filteredChats.length || null} />
+              <div className="px-1 space-y-0.5 pb-2">
+                {filteredChats.length === 0 && searchQuery && (
+                  <p className="text-t4 text-center text-xs py-4">No results match query</p>
+                )}
+                {filteredChats.length === 0 && !searchQuery && (
+                  <EmptyChats onNewChat={handleNewChat} />
+                )}
+                {filteredChats.map(chat => {
+                  const isActive = chat.id === activeChatId;
+                  const queryCount = chat.messages.filter(m => m.role === 'user').length;
+                  return (
+                    <motion.div
+                      key={chat.id}
+                      layout
+                      onHoverStart={() => setHoveredChat(chat.id)}
+                      onHoverEnd={() => setHoveredChat(null)}
+                      onClick={() => { selectChat(chat.id); if (open) onClose?.(); }}
+                      className={`
+                        nav-item relative group flex items-center gap-2.5 px-3 py-2 cursor-pointer
+                        ${isActive ? 'active text-white font-medium' : 'text-t2'}
+                      `}
                     >
-                      <Trash2 size={11} className="text-t4 hover:text-danger" />
+                      <MessageSquare size={13} className={isActive ? 'text-brand-light flex-shrink-0' : 'text-t4 flex-shrink-0'} />
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs truncate block">
+                          {chat.title}
+                        </span>
+                      </div>
+                      {queryCount > 0 && hoveredChat !== chat.id && (
+                        <span className="text-t4 text-[10px] font-mono bg-white/[0.02] border border-white/[0.04] px-1 rounded tabular-nums">{queryCount}</span>
+                      )}
+                      {hoveredChat === chat.id && (
+                        <button
+                          onClick={e => { e.stopPropagation(); deleteChat(chat.id); }}
+                          className="flex-shrink-0 w-4 h-4 rounded flex items-center justify-center hover:bg-danger/10 text-t4 hover:text-danger transition-colors"
+                          aria-label={`Delete chat: ${chat.title}`}
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      )}
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <div className="py-2">
+              <div className="h-px bg-border-1 my-1 mx-2" />
+              <div className="flex flex-col gap-1 items-center">
+                {filteredChats.slice(0, 8).map(chat => {
+                  const isActive = chat.id === activeChatId;
+                  return (
+                    <button
+                      key={chat.id}
+                      onClick={() => selectChat(chat.id)}
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all focus-ring relative ${
+                        isActive ? 'text-brand-light bg-brand-dim border border-brand/20' : 'text-t4 hover:text-t2 hover:bg-white/5'
+                      }`}
+                      title={chat.title}
+                    >
+                      <MessageSquare size={14} />
+                      {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-3 rounded-r bg-brand-light" />}
                     </button>
-                  )}
-                </motion.div>
-              );
-            })}
-          </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Saved queries */}
-          <SectionHeader
-            title="Saved"
-            count={savedQueries.length || null}
-            collapsed={savedCollapsed}
-            onToggle={() => setSavedCollapsed(v => !v)}
-          />
-          <AnimatePresence initial={false}>
-            {!savedCollapsed && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden"
-              >
-                <div className="px-2 space-y-0.5 pb-4">
-                  {savedQueries.map((q, i) => (
-                    <button
-                      key={i}
-                      onClick={() => handleSavedQuery(q)}
-                      className="w-full flex items-start gap-2 px-3 py-2 rounded-xl text-left transition-all group/saved focus-ring"
-                      style={{ background: 'transparent' }}
-                      onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface-hover)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                    >
-                      <Bookmark size={12} className="text-t4 mt-0.5 flex-shrink-0 group-hover/saved:text-accent transition-colors" />
-                      <span className="text-xs text-t3 group-hover/saved:text-t2 transition-colors line-clamp-2 leading-relaxed">{q}</span>
-                    </button>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {!sidebarCollapsed ? (
+            <>
+              <SectionHeader
+                title="Saved Queries"
+                count={filteredSaved.length || null}
+                collapsed={savedCollapsed}
+                onToggle={() => setSavedCollapsed(v => !v)}
+              />
+              <AnimatePresence initial={false}>
+                {!savedCollapsed && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-1 space-y-0.5 pb-4">
+                      {filteredSaved.map((q, i) => (
+                        <button
+                          key={i}
+                          onClick={() => handleSavedQuery(q)}
+                          className="w-full flex items-start gap-2.5 px-3 py-2 rounded-lg text-left hover:bg-white/[0.03] transition-all group/saved focus-ring"
+                        >
+                          <Bookmark size={12} className="text-t4 mt-0.5 flex-shrink-0 group-hover/saved:text-brand-light transition-colors" />
+                          <span className="text-xs text-t3 group-hover/saved:text-t2 transition-colors line-clamp-2 leading-normal">{q}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </>
+          ) : (
+            <div className="py-1">
+              <div className="h-px bg-border-1 my-1 mx-2" />
+              <div className="flex flex-col gap-1 items-center">
+                <button
+                  onClick={() => { setSidebarCollapsed(false); setSavedCollapsed(false); }}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-t4 hover:text-t2 hover:bg-white/5 transition-all focus-ring"
+                  title="Saved queries"
+                >
+                  <Bookmark size={14} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Footer — single health indicator */}
-        <div style={{ borderTop: '1px solid var(--border-1)' }} className="p-3">
-          <div className="flex items-center gap-2.5 px-2">
-            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-              health.status === 'healthy' ? 'dot-online' :
-              health.status === 'degraded' ? 'dot-warning' : 'bg-white/20'
-            }`} />
-            <span className="text-xs text-t3 flex-1">
-              {health.status === 'healthy' ? 'All systems operational' :
-               health.status === 'degraded' ? 'Degraded performance' : 'Connecting...'}
-            </span>
-            {health.latency && (
-              <span className="text-xs font-mono text-t4 tabular-nums">{health.latency}ms</span>
-            )}
-          </div>
+        {/* Footer — Profile, Settings, and Sidebar Collapse Trigger */}
+        <div style={{ borderTop: '1px solid var(--border-1)' }} className="p-3 bg-surface-05">
+          {/* Health status indicator */}
+          {!sidebarCollapsed ? (
+            <div className="flex items-center gap-2 px-2 mb-3">
+              <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                health.status === 'healthy' ? 'dot-online' :
+                health.status === 'degraded' ? 'dot-warning' : 'bg-white/20'
+              }`} />
+              <span className="text-[10px] text-t4 font-semibold uppercase tracking-wider flex-1">
+                {health.status === 'healthy' ? 'All systems active' :
+                 health.status === 'degraded' ? 'Degraded service' : 'Connecting...'}
+              </span>
+              {health.latency && (
+                <span className="text-[10px] font-mono text-t4 opacity-60 tabular-nums">{health.latency}ms</span>
+              )}
+            </div>
+          ) : (
+            <div className="flex justify-center mb-3">
+              <div 
+                className={`w-2 h-2 rounded-full flex-shrink-0 cursor-help ${
+                  health.status === 'healthy' ? 'dot-online' :
+                  health.status === 'degraded' ? 'dot-warning' : 'bg-white/20'
+                }`}
+                title={health.status === 'healthy' ? `All systems active (${health.latency || 0}ms)` : 'Connecting...'}
+              />
+            </div>
+          )}
+
+          {/* Profile row */}
+          {!sidebarCollapsed ? (
+            <div className="flex items-center justify-between gap-1 px-1">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black text-white uppercase shadow-md flex-shrink-0"
+                  style={{ background: 'linear-gradient(135deg, var(--brand), var(--brand-violet))' }}>
+                  LC
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs text-t2 font-semibold truncate leading-tight">Lalit Chaudhari</span>
+                  <span className="text-[10px] text-t4 leading-none">Developer</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-0.5">
+                <button
+                  className="w-6 h-6 rounded flex items-center justify-center text-t4 hover:text-t2 hover:bg-white/5 transition-colors focus-ring"
+                  title="Settings"
+                  aria-label="Settings"
+                >
+                  <Settings size={13} />
+                </button>
+                <button
+                  onClick={() => setSidebarCollapsed(true)}
+                  className="hidden lg:flex w-6 h-6 rounded items-center justify-center text-t4 hover:text-t2 hover:bg-white/5 transition-colors focus-ring"
+                  title="Collapse sidebar"
+                  aria-label="Collapse sidebar"
+                >
+                  <PanelLeftClose size={13} />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black text-white uppercase shadow-md"
+                title="Lalit Chaudhari"
+                style={{ background: 'linear-gradient(135deg, var(--brand), var(--brand-violet))' }}>
+                LC
+              </div>
+              <button
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-t4 hover:text-t2 hover:bg-white/5 transition-colors focus-ring"
+                title="Settings"
+                aria-label="Settings"
+              >
+                <Settings size={14} />
+              </button>
+              <button
+                onClick={() => setSidebarCollapsed(false)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-t4 hover:text-brand-light hover:bg-brand-dim/30 transition-colors focus-ring"
+                title="Expand sidebar"
+                aria-label="Expand sidebar"
+              >
+                <PanelLeft size={14} />
+              </button>
+            </div>
+          )}
         </div>
       </motion.aside>
     </>

@@ -16,7 +16,7 @@ const MarkdownText = React.memo(function MarkdownText({ text = '' }) {
     .replace(/>/g, '&gt;')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/`([^`]+)`/g, '<code class="font-mono text-cyan-300 bg-white/10 px-1.5 py-0.5 rounded text-xs">$1</code>')
+    .replace(/`([^`]+)`/g, '<code class="font-mono text-brand-light bg-white/10 px-1.5 py-0.5 rounded text-xs">$1</code>')
     .replace(/\n/g, '<br/>');
   return <span dangerouslySetInnerHTML={{ __html: html }} />;
 });
@@ -47,24 +47,20 @@ function ResultSummary({ rows }) {
   ];
 
   return (
-    <div className="mb-4 grid gap-2 sm:grid-cols-3">
+    <div className="mb-4 grid gap-3 sm:grid-cols-3">
       {cards.map(({ icon: Icon, label, value }, i) => (
         <motion.div
           key={label}
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: i * 0.05 }}
-          className="rounded-xl p-3"
-          style={{
-            background: 'var(--surface-1)',
-            border: '1px solid var(--border-1)',
-          }}
+          className="rounded-xl p-3 bg-surface-1 border border-border-1"
         >
-          <div className="mb-1.5 flex items-center gap-2 text-t4">
+          <div className="mb-1 flex items-center gap-2 text-t4">
             <Icon size={12} />
-            <span className="text-[11px] font-semibold uppercase tracking-wide">{label}</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider">{label}</span>
           </div>
-          <p className="truncate font-mono text-lg font-semibold text-white">{value}</p>
+          <p className="truncate font-mono text-lg font-bold text-white">{value}</p>
         </motion.div>
       ))}
     </div>
@@ -73,49 +69,34 @@ function ResultSummary({ rows }) {
 
 function ThinkingStatus({ stage }) {
   return (
-    <div className="mb-4 flex items-center gap-2.5 rounded-xl px-4 py-3"
-      style={{
-        background: 'var(--surface-1)',
-        border: '1px solid var(--border-1)',
-      }}
-    >
+    <div className="mb-4 flex items-center gap-3 rounded-xl px-4 py-3 bg-surface-1 border border-border-1">
       <div className="flex gap-1">
         {[0, 1, 2].map(i => (
           <motion.div
             key={i}
             animate={{ opacity: [0.3, 1, 0.3] }}
             transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.18 }}
-            className="h-1.5 w-1.5 rounded-full bg-blue-400"
+            className="h-1.5 w-1.5 rounded-full bg-brand-light"
           />
         ))}
       </div>
-      <span className="text-xs text-t3">{stage || 'Planning retrieval strategy...'}</span>
+      <span className="text-xs text-t3 font-medium">{stage || 'Planning retrieval strategy...'}</span>
     </div>
   );
 }
 
 function UserBubble({ content }) {
   return (
-    <div className="mb-6 flex items-end justify-end gap-3">
+    <div className="flex justify-end w-full mb-6">
       <div
-        className="max-w-[80%] rounded-2xl rounded-br-md px-4 py-3 text-sm leading-relaxed text-white shadow-lg"
+        className="max-w-[80%] rounded-2xl rounded-tr-sm px-4 py-3 text-sm leading-relaxed text-white shadow-md font-medium"
         style={{
-          background: 'linear-gradient(135deg, rgba(59,130,246,0.18), rgba(59,130,246,0.12))',
-          border: '1px solid rgba(59,130,246,0.22)',
-          boxShadow: '0 4px 16px rgba(59,130,246,0.08)',
+          background: 'linear-gradient(135deg, var(--brand), rgba(99,102,241,0.7))',
+          border: '1px solid rgba(255,255,255,0.08)',
+          boxShadow: '0 4px 16px rgba(99,102,241,0.15)',
         }}
       >
         {content}
-      </div>
-      <div
-        className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-xl text-xs font-bold"
-        style={{
-          background: 'linear-gradient(135deg, rgba(99,102,241,0.2), rgba(59,130,246,0.15))',
-          border: '1px solid rgba(99,102,241,0.25)',
-          color: '#a5b4fc',
-        }}
-      >
-        U
       </div>
     </div>
   );
@@ -153,51 +134,39 @@ function AssistantBubble({ message, chatId, onRegenerate }) {
   };
 
   return (
-    <div className="mb-6 flex items-start gap-3">
+    <div className="mb-6 flex items-start gap-4">
       {/* Assistant avatar */}
       <div
-        className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-xl shadow-lg"
+        className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-xl shadow-md border border-white/[0.05]"
         style={{
-          background: 'linear-gradient(135deg, #3b82f6, #06b6d4)',
-          boxShadow: '0 4px 12px rgba(59,130,246,0.25)',
+          background: 'linear-gradient(135deg, var(--brand), var(--brand-cyan))',
+          boxShadow: '0 4px 12px rgba(99,102,241,0.25)',
         }}
       >
-        <span className="text-xs font-black text-white">S</span>
+        <span className="text-xs font-black text-white leading-none">S</span>
       </div>
 
       <div className="min-w-0 flex-1">
         {/* Main card */}
         <div
-          className="rounded-2xl rounded-tl-md p-4 shadow-lg"
+          className="rounded-2xl rounded-tl-sm p-5 shadow-lg border border-border-1 relative overflow-hidden"
           style={{
-            background: 'var(--surface-1)',
-            border: '1px solid var(--border-1)',
+            background: 'var(--surface-05)',
             boxShadow: '0 4px 24px rgba(0,0,0,0.12)',
           }}
         >
           {message.error ? (
-            /* Error state with inline retry */
-            <div className="rounded-xl p-4"
-              style={{
-                background: 'rgba(239,68,68,0.06)',
-                border: '1px solid rgba(239,68,68,0.15)',
-                borderLeft: '3px solid rgba(239,68,68,0.5)',
-              }}
-            >
+            /* Error state with retry option */
+            <div className="rounded-xl p-4 bg-red-500/5 border border-red-500/15 border-l-4 border-l-danger">
               <div className="flex items-start gap-3">
-                <AlertTriangle size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
+                <AlertTriangle size={16} className="text-danger flex-shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-red-100/80 mb-2">{message.error}</p>
+                  <p className="text-sm text-red-100/90 font-medium mb-3 leading-relaxed">{message.error}</p>
                   <button
                     onClick={onRegenerate}
-                    className="text-xs font-medium px-3 py-1.5 rounded-lg transition-all"
-                    style={{
-                      background: 'rgba(239,68,68,0.1)',
-                      border: '1px solid rgba(239,68,68,0.2)',
-                      color: '#fca5a5',
-                    }}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-all bg-danger/10 border border-danger/25 text-red-200 hover:bg-danger/20 hover:text-white"
                   >
-                    <RefreshCw size={11} className="inline mr-1.5" />
+                    <RefreshCw size={11} className="inline mr-1.5 animate-pulse" />
                     Try again
                   </button>
                 </div>
@@ -228,7 +197,7 @@ function AssistantBubble({ message, chatId, onRegenerate }) {
               {rows.length > 0 && <ResultSummary rows={rows} />}
 
               {(message.streamText || data.message) && (
-                <div className={`mb-4 text-sm leading-7 text-t2 ${message.streaming && message._pipelineStep >= 4 ? 'typing-cursor block' : ''}`}>
+                <div className={`mb-4 text-sm leading-relaxed text-t2 font-medium ${message.streaming && message._pipelineStep >= 4 ? 'typing-cursor block' : ''}`}>
                   <MarkdownText text={message.streamText || data.message} />
                 </div>
               )}
@@ -240,15 +209,13 @@ function AssistantBubble({ message, chatId, onRegenerate }) {
 
               {/* Follow-up questions */}
               {Array.isArray(data.follow_ups) && data.follow_ups.length > 0 && !message.streaming && (
-                <div className="mt-3">
+                <div className="mt-4 pt-3 border-t border-border-1">
                   <button
                     onClick={() => setFollowUpOpen(v => !v)}
-                    className="text-xs font-medium transition-colors"
-                    style={{ color: 'rgba(103,232,249,0.6)' }}
-                    onMouseEnter={e => { e.currentTarget.style.color = '#67e8f9'; }}
-                    onMouseLeave={e => { e.currentTarget.style.color = 'rgba(103,232,249,0.6)'; }}
+                    className="text-[11px] font-bold uppercase tracking-wider text-brand-light hover:text-white transition-colors flex items-center gap-1"
                   >
-                    {followUpOpen ? '▾ Hide' : '▸ Show'} follow-up questions
+                    <span>{followUpOpen ? 'Hide' : 'Show'} follow-up questions</span>
+                    <span className="text-t4 font-mono font-normal">({data.follow_ups.length})</span>
                   </button>
                   <AnimatePresence>
                     {followUpOpen && (
@@ -256,25 +223,13 @@ function AssistantBubble({ message, chatId, onRegenerate }) {
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
-                        className="mt-2 flex flex-wrap gap-2 overflow-hidden"
+                        className="mt-2.5 flex flex-wrap gap-2 overflow-hidden"
                       >
                         {data.follow_ups.slice(0, 4).map((q, i) => (
                           <button
                             key={i}
                             onClick={() => window.dispatchEvent(new CustomEvent('plainsql:submit', { detail: { query: q } }))}
-                            className="rounded-lg px-3 py-1.5 text-xs text-t2 transition-all"
-                            style={{
-                              background: 'var(--surface-1)',
-                              border: '1px solid var(--border-1)',
-                            }}
-                            onMouseEnter={e => {
-                              e.currentTarget.style.borderColor = 'rgba(6,182,212,0.3)';
-                              e.currentTarget.style.color = '#fff';
-                            }}
-                            onMouseLeave={e => {
-                              e.currentTarget.style.borderColor = 'var(--border-1)';
-                              e.currentTarget.style.color = '';
-                            }}
+                            className="rounded-lg px-3 py-1.5 text-xs text-t2 border border-border-1 bg-surface-1 hover:bg-surface-hover hover:border-brand/35 hover:text-white transition-all font-medium text-left"
                           >
                             {q}
                           </button>
@@ -288,38 +243,37 @@ function AssistantBubble({ message, chatId, onRegenerate }) {
           )}
         </div>
 
-        {/* Action bar — clean grouping */}
+        {/* Action bar */}
         {!message.pending && !message.streaming && !message.error && (
-          <div className="mt-2 flex items-center gap-0.5 pl-1">
-            {/* Left group: Copy + Retry */}
-            <button
-              onClick={handleCopyResponse}
-              className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-t4 transition-all hover:bg-white/[0.05] hover:text-t2"
-              aria-label="Copy response"
-            >
-              {copied ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
-              {copied ? 'Copied' : 'Copy'}
-            </button>
-            <button
-              onClick={onRegenerate}
-              className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-t4 transition-all hover:bg-white/[0.05] hover:text-t2"
-              aria-label="Regenerate response"
-            >
-              <RefreshCw size={11} />
-              Retry
-            </button>
-
-            <div className="flex-1" />
+          <div className="mt-2 flex items-center justify-between pl-1">
+            {/* Left group: Copy & Retry */}
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handleCopyResponse}
+                className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-t4 hover:bg-white/[0.04] hover:text-t2 transition-all"
+                aria-label="Copy response"
+              >
+                {copied ? <Check size={12} className="text-success" /> : <Copy size={12} />}
+                <span>{copied ? 'Copied' : 'Copy'}</span>
+              </button>
+              <button
+                onClick={onRegenerate}
+                className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-t4 hover:bg-white/[0.04] hover:text-t2 transition-all"
+                aria-label="Regenerate response"
+              >
+                <RefreshCw size={12} />
+                <span>Retry</span>
+              </button>
+            </div>
 
             {/* Right group: Feedback */}
-            <div className="flex items-center gap-0.5 rounded-lg p-0.5"
-              style={{ background: 'var(--surface-1)' }}>
+            <div className="flex items-center gap-0.5 rounded-lg p-0.5 bg-surface-1 border border-border-1 shadow-inner">
               <button
                 onClick={() => handleFeedback('up')}
                 className={`rounded-md p-1.5 transition-all ${
                   message._feedback === 'up'
-                    ? 'bg-emerald-400/15 text-emerald-300'
-                    : 'text-t4 hover:bg-white/[0.06] hover:text-t2'
+                    ? 'bg-success/15 text-success'
+                    : 'text-t4 hover:bg-white/[0.04] hover:text-t2'
                 }`}
                 aria-label="Thumbs up"
               >
@@ -329,8 +283,8 @@ function AssistantBubble({ message, chatId, onRegenerate }) {
                 onClick={() => handleFeedback('down')}
                 className={`rounded-md p-1.5 transition-all ${
                   message._feedback === 'down'
-                    ? 'bg-red-400/15 text-red-300'
-                    : 'text-t4 hover:bg-white/[0.06] hover:text-t2'
+                    ? 'bg-danger/15 text-danger'
+                    : 'text-t4 hover:bg-white/[0.04] hover:text-t2'
                 }`}
                 aria-label="Thumbs down"
               >

@@ -220,6 +220,9 @@ INSTRUCTIONS:
 10. Do NOT wrap output in markdown code blocks.
 11. Use meaningful column aliases with AS for aggregated values (e.g., AS total_revenue, AS avg_salary).
 12. Handle NULL values appropriately in filters and LEFT JOINs.
+13. NEVER use SELECT column aliases (like 'yr', 'qtr', 'month') in the GROUP BY clause. Always GROUP BY the actual column or database function call itself (e.g., use GROUP BY YEAR(invoice_date), QUARTER(invoice_date) instead of GROUP BY yr, qtr).
+14. When writing CTEs (Common Table Expressions) that use GROUP BY, ensure all grouping fields are defined in the CTE's SELECT list using proper table columns or expressions. Do not group by undefined aliases.
+15. When calculating Net Revenue Retention (NRR) or subscription cohorts, avoid complex self-joins on quarters. Simply calculate the ratio of active contracted ARR to total contracted ARR for subscriptions starting in each period (e.g., SELECT a.segment, YEAR(s.start_date) AS yr, QUARTER(s.start_date) AS qtr, SUM(CASE WHEN s.status = 'active' THEN s.contracted_arr ELSE 0 END) AS active_arr, SUM(s.contracted_arr) AS total_arr, ROUND(SUM(CASE WHEN s.status = 'active' THEN s.contracted_arr ELSE 0 END) * 100.0 / SUM(s.contracted_arr), 2) AS nrr_pct FROM subscriptions s JOIN accounts a ON s.account_id = a.account_id WHERE s.start_date >= DATE_SUB((SELECT MAX(start_date) FROM subscriptions), INTERVAL 1 YEAR) GROUP BY a.segment, YEAR(s.start_date), QUARTER(s.start_date) ORDER BY yr DESC, qtr DESC, nrr_pct DESC).
 
 {history_context}
 {retry_context}

@@ -2,10 +2,10 @@ import { motion } from 'framer-motion';
 import { Tag, Clock, Hash, Search } from 'lucide-react';
 
 const intentColors = {
-  analytical: { bg: 'rgba(59,130,246,0.10)', border: 'rgba(59,130,246,0.22)', text: '#60a5fa' },
+  analytical: { bg: 'rgba(99,102,241,0.10)', border: 'rgba(99,102,241,0.22)', text: '#818cf8' },
   lookup:     { bg: 'rgba(6,182,212,0.10)',  border: 'rgba(6,182,212,0.22)',  text: '#22d3ee' },
   aggregate:  { bg: 'rgba(167,139,250,0.10)', border: 'rgba(167,139,250,0.22)', text: '#c4b5fd' },
-  sql:        { bg: 'rgba(59,130,246,0.10)', border: 'rgba(59,130,246,0.22)', text: '#60a5fa' },
+  sql:        { bg: 'rgba(99,102,241,0.10)', border: 'rgba(99,102,241,0.22)', text: '#818cf8' },
   default:    { bg: 'var(--surface-1)', border: 'var(--border-1)', text: 'rgba(255,255,255,0.6)' },
 };
 
@@ -15,12 +15,12 @@ function Badge({ icon: Icon, label, value, colors, delay = 0 }) {
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ delay, duration: 0.2 }}
-      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs"
+      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold"
       style={{ background: colors.bg, border: `1px solid ${colors.border}` }}
     >
       <Icon size={10} style={{ color: colors.text }} />
       <span className="text-t4">{label}</span>
-      <span className="font-semibold" style={{ color: colors.text }}>{value}</span>
+      <span style={{ color: colors.text }}>{value}</span>
     </motion.div>
   );
 }
@@ -34,7 +34,7 @@ export default function MetaBadges({ intent, executionTimeMs, rowCount }) {
   if (intent) badges.push({ icon: Tag, label: 'Intent', value: intent, colors });
   if (executionTimeMs != null) badges.push({
     icon: Clock, label: 'Latency', value: `${Math.round(executionTimeMs)}ms`,
-    colors: { bg: 'rgba(34,197,94,0.08)', border: 'rgba(34,197,94,0.18)', text: '#4ade80' }
+    colors: { bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.18)', text: '#34d399' }
   });
   if (rowCount != null) badges.push({
     icon: Hash, label: 'Rows', value: rowCount,

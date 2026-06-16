@@ -10,22 +10,22 @@ const icons = {
 
 const colorMap = {
   success: {
-    bar: '#22c55e',
-    bg: 'rgba(34,197,94,0.08)',
-    border: 'rgba(34,197,94,0.20)',
-    icon: '#4ade80',
+    bar: 'var(--success)',
+    bg: 'rgba(52,211,153,0.06)',
+    border: 'rgba(52,211,153,0.18)',
+    icon: 'var(--success)',
   },
   error: {
-    bar: '#ef4444',
-    bg: 'rgba(239,68,68,0.08)',
-    border: 'rgba(239,68,68,0.20)',
-    icon: '#f87171',
+    bar: 'var(--danger)',
+    bg: 'rgba(248,113,113,0.06)',
+    border: 'rgba(248,113,113,0.18)',
+    icon: 'var(--danger)',
   },
   info: {
-    bar: '#3b82f6',
-    bg: 'rgba(59,130,246,0.08)',
-    border: 'rgba(59,130,246,0.20)',
-    icon: '#60a5fa',
+    bar: 'var(--brand)',
+    bg: 'rgba(99,102,241,0.06)',
+    border: 'rgba(99,102,241,0.18)',
+    icon: 'var(--brand-light)',
   },
 };
 
@@ -47,19 +47,19 @@ export default function Toast() {
               exit={{ opacity: 0, x: 40, scale: 0.95 }}
               transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
               onClick={() => removeToast(t.id)}
-              className="pointer-events-auto flex flex-col rounded-xl cursor-pointer shadow-2xl overflow-hidden"
+              className="pointer-events-auto flex flex-col rounded-xl cursor-pointer shadow-2xl overflow-hidden font-sans"
               style={{
-                background: c.bg,
+                background: 'var(--surface-05)',
                 border: `1px solid ${c.border}`,
                 backdropFilter: 'blur(20px)',
               }}
             >
               <div className="flex items-center gap-3 px-4 py-3">
                 <Icon size={16} style={{ color: c.icon }} className="flex-shrink-0" />
-                <span className="text-sm font-medium text-t1 flex-1">{t.message}</span>
+                <span className="text-xs font-semibold text-t1 flex-1">{t.message}</span>
               </div>
-              {/* Auto-dismiss progress bar */}
-              <div className="h-0.5 w-full" style={{ background: 'rgba(255,255,255,0.04)' }}>
+              {/* Progress bar */}
+              <div className="h-0.5 w-full bg-white/[0.03]">
                 <div
                   className="h-full toast-progress rounded-full"
                   style={{ background: c.bar }}

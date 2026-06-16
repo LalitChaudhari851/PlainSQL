@@ -113,16 +113,142 @@ def query_understanding_node(state: AgentState, llm_router) -> dict:
 
 def _extract_entities_basic(query: str) -> list[str]:
     """
-    Basic entity extraction without LLM - looks for common table name patterns.
-    Fallback when LLM classification fails.
+    Extract table names and relevant entities based on keyword matching
+    covering all 22 database tables and their common business synonyms.
     """
-    common_tables = [
-        "employees", "employee", "departments", "department",
-        "products", "product", "customers", "customer",
-        "sales", "sale", "orders", "order", "users", "user",
-    ]
     query_lower = query.lower()
-    return [t for t in common_tables if t in query_lower]
+    
+    # Map keywords and synonyms to the actual database table names
+    keyword_map = {
+        "subscriptions": ["subscriptions"],
+        "subscription": ["subscriptions"],
+        "arr": ["subscriptions"],
+        "mrr": ["subscriptions"],
+        "nrr": ["subscriptions", "accounts"],
+        "retention": ["subscriptions", "accounts"],
+        "contracted_arr": ["subscriptions"],
+        "contract": ["subscriptions"],
+        
+        "invoices": ["invoices"],
+        "invoice": ["invoices"],
+        "billing": ["invoices"],
+        "bill": ["invoices"],
+        "revenue": ["invoices", "subscriptions"],
+        
+        "payments": ["payments"],
+        "payment": ["payments"],
+        "paid": ["payments"],
+        "transaction": ["payments"],
+        
+        "opportunities": ["opportunities"],
+        "opportunity": ["opportunities"],
+        "deal": ["opportunities"],
+        "deals": ["opportunities"],
+        "pipeline": ["opportunities"],
+        "forecast": ["opportunities"],
+        
+        "support_tickets": ["support_tickets"],
+        "ticket": ["support_tickets"],
+        "tickets": ["support_tickets"],
+        "support": ["support_tickets"],
+        "csat": ["support_tickets"],
+        
+        "ticket_events": ["ticket_events"],
+        "sla": ["ticket_events", "support_tickets"],
+        "breach": ["ticket_events"],
+        
+        "incidents": ["incidents"],
+        "incident": ["incidents"],
+        "outage": ["incidents"],
+        "downtime": ["incidents"],
+        "severity": ["incidents"],
+        
+        "workspaces": ["workspaces"],
+        "workspace": ["workspaces"],
+        "environment": ["workspaces"],
+        "env": ["workspaces"],
+        
+        "workspace_users": ["workspace_users"],
+        "workspace_user": ["workspace_users"],
+        
+        "accounts": ["accounts"],
+        "account": ["accounts"],
+        "customer": ["accounts"],
+        "customers": ["accounts"],
+        "segment": ["accounts"],
+        "industry": ["accounts"],
+        "region": ["accounts"],
+        "health": ["accounts"],
+        "churn": ["accounts"],
+        
+        "contacts": ["contacts"],
+        "contact": ["contacts"],
+        "sponsor": ["contacts"],
+        
+        "employees": ["employees"],
+        "employee": ["employees"],
+        "manager": ["employees"],
+        "rep": ["employees"],
+        "staff": ["employees"],
+        "hire": ["employees"],
+        "salary": ["employees"],
+        "salaries": ["employees"],
+        
+        "departments": ["departments"],
+        "department": ["departments"],
+        "cost center": ["departments"],
+        
+        "plans": ["plans"],
+        "plan": ["plans"],
+        "pricing": ["plans"],
+        
+        "products": ["products"],
+        "product": ["products"],
+        
+        "feature_catalog": ["feature_catalog"],
+        "feature": ["feature_catalog", "products"],
+        "features": ["feature_catalog", "products"],
+        
+        "product_usage_daily": ["product_usage_daily"],
+        "usage": ["product_usage_daily"],
+        "queries": ["product_usage_daily"],
+        "latency": ["product_usage_daily"],
+        
+        "query_audit_log": ["query_audit_log"],
+        "audit": ["query_audit_log"],
+        
+        "users": ["workspace_users", "plainsql_users"],
+        "user": ["workspace_users", "plainsql_users"],
+    }
+    
+    matched_tables = set()
+    
+    # 1. First, check for exact/partial word matching
+    import re
+    words = re.findall(r"[a-z_0-9]+", query_lower)
+    
+    for word in words:
+        if word in keyword_map:
+            matched_tables.update(keyword_map[word])
+            
+    # 2. Check for multi-word phrases (like "cost center", "ticket event")
+    for key, tables in keyword_map.items():
+        if " " in key and key in query_lower:
+            matched_tables.update(tables)
+            
+    # 3. Fallback: check if the actual table name is in the query text directly
+    all_table_names = [
+        "departments", "employees", "plans", "products", "feature_catalog",
+        "accounts", "contacts", "workspaces", "workspace_users", "subscriptions",
+        "invoices", "payments", "opportunities", "product_usage_daily", "support_tickets",
+        "ticket_events", "incidents", "query_audit_log", "query_feedback", "conversations",
+        "messages", "plainsql_users"
+    ]
+    for table in all_table_names:
+        if table in query_lower:
+            matched_tables.add(table)
+            
+    return list(matched_tables)
 
 
 def _build_ambiguous_response(user_query: str) -> str:
