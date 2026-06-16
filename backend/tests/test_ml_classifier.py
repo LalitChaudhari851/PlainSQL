@@ -30,6 +30,21 @@ class TestMLClassifierFallback:
         assert clf.available is False
         assert clf.classify("hello") is None
 
+    def test_classifier_returns_none_when_disabled_by_env(self):
+        """When DISABLE_ML_INTENT is set, classify() should return None."""
+        from app.agents.ml_classifier import MLIntentClassifier
+        with patch.dict(os.environ, {"DISABLE_ML_INTENT": "true"}):
+            clf = MLIntentClassifier()
+            assert clf.available is False
+            assert clf.classify("hello") is None
+
+    def test_bridge_returns_none_when_disabled_by_env(self):
+        """When DISABLE_ML_INTENT is set, the bridge should bypass ML classification."""
+        from app.agents.intent_classifier import _try_ml_classification
+        with patch.dict(os.environ, {"DISABLE_ML_INTENT": "true"}):
+            result = _try_ml_classification("hello")
+            assert result is None
+
     def test_heuristic_still_works_without_ml(self):
         """Intent classifier should work even when ML model is not available."""
         from app.agents.intent_classifier import classify_intent

@@ -74,7 +74,7 @@ def create_chat_router(orchestrator, auth_dep, cache, rate_limiter, tracer, expl
         return QueryResult(**response_data)
 
     @router.post("/chat/stream")
-    def chat_stream(request: GenerateSQLRequest, current_user: dict = Depends(auth_dep)):
+    async def chat_stream(request: GenerateSQLRequest, current_user: dict = Depends(auth_dep)):
         """
         Stream chat responses via Server-Sent Events (SSE).
         Each agent stage emits an event as it completes.
@@ -83,59 +83,21 @@ def create_chat_router(orchestrator, auth_dep, cache, rate_limiter, tracer, expl
         if not rate_limiter.check(user_key):
             raise HTTPException(429, "Rate limit exceeded.")
 
-        def event_generator():
-            start = time.perf_counter()
-
-            # Stage 1: Intent classification
-            yield _sse_event("stage", {"stage": "intent", "message": "Classifying intent..."})
-
-            result = orchestrator.process_query(
+        async def event_generator():
+            sql = ""
+            async for event in orchestrator.aprocess_query_streaming(
                 user_query=request.question,
                 conversation_history=request.history,
                 tenant_id=current_user.get("tenant_id", "default"),
                 user_role=current_user.get("role", "viewer"),
-            )
-
-            tracer.trace_query(result)
-            elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
-
-            # Stage 2: Intent result
-            yield _sse_event("intent", {
-                "intent": result.get("intent", "unknown"),
-                "complexity": result.get("complexity", "unknown"),
-            })
-
-            # Stage 3: SQL
-            sql = result.get("sanitized_sql") or result.get("generated_sql", "")
-            if sql:
-                yield _sse_event("sql", {
-                    "sql": sql,
-                    "explanation": result.get("sql_explanation", ""),
-                })
-
-            # Stage 4: Results
-            rows = result.get("query_results", [])
-            yield _sse_event("results", {
-                "data": rows[:100],  # Cap at 100 rows for streaming
-                "row_count": result.get("row_count", len(rows)),
-                "column_names": result.get("column_names", []),
-                "execution_time_ms": result.get("execution_time_ms", 0),
-            })
-
-            # Stage 5: Insights
-            yield _sse_event("insights", {
-                "message": result.get("friendly_message", ""),
-                "insights": result.get("insights", []),
-                "follow_ups": result.get("follow_up_questions", []),
-                "chart_config": result.get("chart_config"),
-            })
-
-            # Stage 6: Done
-            yield _sse_event("done", {
-                "trace_id": result.get("trace_id", ""),
-                "total_time_ms": elapsed_ms,
-                "error": result.get("error"),
-            })
+            ):
+                event_type = event.get("type", "message")
+                
+                # Check for SQL to trace
+                if event_type == "sql":
+                    sql = event.get("sql", "")
+                    
+                yield _sse_event(event_type, event)
 
         return StreamingResponse(
             event_generator(),

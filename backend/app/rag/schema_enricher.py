@@ -49,6 +49,13 @@ class SchemaEnricher:
         row_count = self.db.get_row_count(table_name)
         fks = self.db.get_foreign_keys(table_name)
 
+        # Fetch sample rows to extract column examples in memory to avoid query storm
+        sample_rows = []
+        try:
+            sample_rows = self.db.execute_query(f"SELECT * FROM `{table_name}` LIMIT 5")
+        except Exception as e:
+            logger.warning("sample_rows_fetch_failed", table=table_name, error=str(e))
+
         # Build document
         doc = f"Table: {table_name}\n"
         doc += f"Row Count: ~{row_count}\n"
@@ -71,9 +78,15 @@ class SchemaEnricher:
             elif col["key"] == "UNI":
                 doc += " [UNIQUE]"
 
-            # Add sample values for non-key columns
+            # Add sample values for non-key columns (extracted in memory)
             if col["key"] != "PRI":
-                samples = self.db.get_sample_values(table_name, col_name, limit=3)
+                samples = []
+                for row in sample_rows:
+                    val = row.get(col_name)
+                    if val is not None and val not in samples:
+                        samples.append(val)
+                    if len(samples) >= 3:
+                        break
                 if samples:
                     sample_strs = [str(s)[:50] for s in samples]  # Truncate long values
                     doc += f" | Examples: {', '.join(sample_strs)}"
@@ -101,4 +114,6 @@ class SchemaEnricher:
             "table_name": table_name,
             "document": doc,
             "metadata": metadata,
+            "raw_columns": columns,
+            "raw_fks": fks,
         }

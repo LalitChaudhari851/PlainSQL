@@ -372,11 +372,13 @@ class ModelRouter:
 
                 except Exception as e:
                     last_error = e
+                    elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
                     logger.warning(
                         "llm_call_failed",
                         provider=provider_name,
                         attempt=attempt,
                         max_retries=max_retries,
+                        elapsed_ms=elapsed_ms,
                         error=str(e),
                     )
 

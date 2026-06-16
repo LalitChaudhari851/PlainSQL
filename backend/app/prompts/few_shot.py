@@ -64,6 +64,10 @@ class DynamicFewShotSelector:
             return
 
         # Load encoder and pre-compute embeddings
+        if os.environ.get("DISABLE_ML_INTENT", "false").lower() in ("true", "1", "yes"):
+            logger.info("few_shot_encoder_disabled_by_env")
+            return
+
         try:
             from sentence_transformers import SentenceTransformer
 

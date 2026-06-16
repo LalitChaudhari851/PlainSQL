@@ -11,6 +11,7 @@ Falls back gracefully when sentence-transformers is unavailable.
 """
 
 import time
+import os
 import threading
 import structlog
 from typing import Optional
@@ -51,6 +52,10 @@ class SemanticCache:
 
     def _get_encoder(self):
         """Lazy-load the sentence encoder on first use."""
+        if os.environ.get("DISABLE_ML_INTENT", "false").lower() in ("true", "1", "yes"):
+            logger.info("semantic_cache_encoder_disabled_by_env")
+            return None
+
         if not self._encoder_loaded:
             self._encoder_loaded = True
             try:
@@ -67,7 +72,14 @@ class SemanticCache:
     @property
     def available(self) -> bool:
         """Check if semantic caching is available."""
-        return self._get_encoder() is not None
+        if os.environ.get("DISABLE_ML_INTENT", "false").lower() in ("true", "1", "yes"):
+            return False
+        try:
+            import sentence_transformers
+            import numpy
+            return True
+        except ImportError:
+            return False
 
     def get(self, query: str, tenant_id: str = "default") -> Optional[dict]:
         """

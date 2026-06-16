@@ -51,9 +51,26 @@ class HybridRetriever:
         # Initialize ChromaDB unless local dev explicitly disables vector search.
         if self.vector_enabled:
             self.chroma_client = chromadb.PersistentClient(path=chroma_persist_dir)
+            
+            # Use Hugging Face Inference API embeddings if token is configured
+            # to avoid loading heavy local PyTorch/ONNX models.
+            embedding_fn = None
+            hf_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
+            if hf_token:
+                try:
+                    from chromadb.utils.embedding_functions import HuggingFaceEmbeddingFunction
+                    embedding_fn = HuggingFaceEmbeddingFunction(
+                        api_key=hf_token,
+                        model_name="sentence-transformers/all-MiniLM-L6-v2"
+                    )
+                    logger.info("using_huggingface_embedding_function")
+                except Exception as e:
+                    logger.warning("hf_embedding_init_failed", error=str(e))
+
             self.collection = self.chroma_client.get_or_create_collection(
                 name="schema_knowledge_v2",
                 metadata={"hnsw:space": "cosine"},
+                embedding_function=embedding_fn,
             )
         else:
             self.chroma_client = None
@@ -92,7 +109,33 @@ class HybridRetriever:
     def _index_schema(self):
         """Index all tables into both ChromaDB and BM25."""
         try:
-            enriched_tables = self.enricher.enrich_all_tables()
+            schema_file = os.path.join(self.chroma_client.persist_directory if self.chroma_client and hasattr(self.chroma_client, "persist_directory") else "./chroma_db", "enriched_schema.json")
+            
+            # Try to load from file cache first to avoid startup DB queries
+            loaded_from_cache = False
+            enriched_tables = []
+            
+            if os.path.exists(schema_file):
+                try:
+                    import json
+                    with open(schema_file, "r", encoding="utf-8") as f:
+                        enriched_tables = json.load(f)
+                    loaded_from_cache = True
+                    logger.info("loaded_schema_from_file_cache", path=schema_file)
+                except Exception as e:
+                    logger.warning("failed_to_load_schema_cache", error=str(e))
+            
+            if not loaded_from_cache:
+                enriched_tables = self.enricher.enrich_all_tables()
+                if enriched_tables:
+                    try:
+                        import json
+                        os.makedirs(os.path.dirname(schema_file), exist_ok=True)
+                        with open(schema_file, "w", encoding="utf-8") as f:
+                            json.dump(enriched_tables, f, ensure_ascii=False, indent=2)
+                        logger.info("saved_schema_to_file_cache", path=schema_file)
+                    except Exception as e:
+                        logger.warning("failed_to_save_schema_cache", error=str(e))
 
             if not enriched_tables:
                 logger.warning("no_tables_to_index")
@@ -108,18 +151,22 @@ class HybridRetriever:
                 ids.append(item["table_name"])
 
             if self.vector_enabled:
-                # Clear existing ChromaDB data
-                if self.collection.count() > 0:
-                    existing = self.collection.get()
-                    if existing["ids"]:
-                        self.collection.delete(ids=existing["ids"])
+                current_count = self.collection.count()
+                if current_count == len(enriched_tables):
+                    logger.info("schema_already_indexed_skipping_write", count=current_count)
+                else:
+                    # Clear existing ChromaDB data
+                    if current_count > 0:
+                        existing = self.collection.get()
+                        if existing["ids"]:
+                            self.collection.delete(ids=existing["ids"])
 
-                # Index into ChromaDB
-                self.collection.add(
-                    documents=documents,
-                    metadatas=metadatas,
-                    ids=ids,
-                )
+                    # Index into ChromaDB
+                    self.collection.add(
+                        documents=documents,
+                        metadatas=metadatas,
+                        ids=ids,
+                    )
 
             # Build BM25 index
             self.documents = documents
@@ -314,6 +361,9 @@ class HybridRetriever:
 
     def _get_reranker(self):
         """Lazy-load the cross-encoder reranker."""
+        if os.environ.get("DISABLE_ML_INTENT", "false").lower() in ("true", "1", "yes") or not self.vector_enabled:
+            return None
+
         if self._reranker_loaded:
             return self._reranker
 
@@ -343,4 +393,15 @@ class HybridRetriever:
     def refresh_index(self):
         """Re-index the schema (call after schema changes)."""
         logger.info("reindexing_schema")
+        if hasattr(self.db_pool, 'clear_schema_cache'):
+            self.db_pool.clear_schema_cache()
+            
+        schema_file = os.path.join(self.chroma_client.persist_directory if self.chroma_client and hasattr(self.chroma_client, "persist_directory") else "./chroma_db", "enriched_schema.json")
+        if os.path.exists(schema_file):
+            try:
+                os.remove(schema_file)
+                logger.info("deleted_schema_file_cache")
+            except Exception as e:
+                logger.warning("failed_to_delete_schema_file_cache", error=str(e))
+                
         self._index_schema()

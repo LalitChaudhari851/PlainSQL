@@ -3,6 +3,7 @@ Database Connection Pool — Production-grade pooled connections via SQLAlchemy 
 Supports multi-tenant databases via tenant_id-based connection routing.
 """
 
+import time
 import re
 from sqlalchemy import create_engine, text, event
 from sqlalchemy.pool import QueuePool
@@ -78,7 +79,39 @@ class DatabasePool:
             """Set session to read-only on checkout for defense-in-depth."""
             pass  # MySQL read-only requires SUPER privilege; rely on SQL validation instead
 
+        # ── In-Memory Schema Cache ──
+        self._tables = None
+        self._table_schemas = {}
+        self._foreign_keys = {}
+
+        self._prepopulate_cache_from_file()
+
         self._validate_connection()
+
+    def _prepopulate_cache_from_file(self):
+        """Pre-populate the schema cache from enriched_schema.json if it exists."""
+        import os
+        import json
+        schema_file = "./chroma_db/enriched_schema.json"
+        if os.path.exists(schema_file):
+            try:
+                with open(schema_file, "r", encoding="utf-8") as f:
+                    enriched_tables = json.load(f)
+                tables = []
+                for item in enriched_tables:
+                    table_name = item.get("table_name")
+                    if not table_name:
+                        continue
+                    tables.append(table_name)
+                    if "raw_columns" in item:
+                        self._table_schemas[table_name] = item["raw_columns"]
+                    if "raw_fks" in item:
+                        self._foreign_keys[table_name] = item["raw_fks"]
+                if tables:
+                    self._tables = tables
+                    logger.info("prepopulated_database_schema_cache_from_file", tables=len(tables))
+            except Exception as e:
+                logger.warning("failed_to_prepopulate_schema_cache", error=str(e))
 
     def _validate_connection(self):
         """Validate database connectivity on startup."""
@@ -102,67 +135,97 @@ class DatabasePool:
 
     def execute_query(self, query: str, params: Optional[dict] = None) -> list[dict]:
         """Execute a read-only query and return results as list of dicts."""
-        with self._engine.connect() as conn:
-            # Enforce statement-level timeout (milliseconds) to prevent
-            # runaway queries from blocking the thread pool forever.
-            # The socket read_timeout only handles network stalls, not slow SQL.
-            timeout_ms = self.query_timeout * 1000
-            try:
-                conn.execute(text(f"SET SESSION max_execution_time = {timeout_ms}"))
-            except Exception:
-                pass  # Non-critical — older MySQL versions may not support this
+        start_time = time.perf_counter()
+        try:
+            with self._engine.connect() as conn:
+                # Enforce statement-level timeout (milliseconds) to prevent
+                # runaway queries from blocking the thread pool forever.
+                # The socket read_timeout only handles network stalls, not slow SQL.
+                timeout_ms = self.query_timeout * 1000
+                try:
+                    conn.execute(text(f"SET SESSION max_execution_time = {timeout_ms}"))
+                except Exception:
+                    pass  # Non-critical — older MySQL versions may not support this
 
-            if params:
-                result = conn.execute(text(query), params)
-            else:
-                result = conn.execute(text(query))
-            columns = result.keys()
-            return [dict(zip(columns, row)) for row in result.fetchall()]
+                if params:
+                    result = conn.execute(text(query), params)
+                else:
+                    result = conn.execute(text(query))
+                columns = result.keys()
+                rows = [dict(zip(columns, row)) for row in result.fetchall()]
+                elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+                logger.info("db_query_executed", query=query[:200], elapsed_ms=elapsed_ms, row_count=len(rows))
+                return rows
+        except Exception as e:
+            elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            logger.error("db_query_failed", query=query[:200], elapsed_ms=elapsed_ms, error=str(e))
+            raise
 
     def _execute_write_internal(self, query: str, params: Optional[tuple] = None):
         """
         Execute a write query. INTERNAL USE ONLY — for schema setup and migrations.
         User-facing queries MUST go through execute_query after SQL validation.
         """
-        with self._engine.begin() as conn:
-            if params:
-                # Build named params dict matching :p0, :p1, :p2... placeholders
-                param_dict = {f"p{i}": v for i, v in enumerate(params)}
-                conn.execute(text(query), param_dict)
-            else:
-                conn.execute(text(query))
+        start_time = time.perf_counter()
+        try:
+            with self._engine.begin() as conn:
+                if params:
+                    # Build named params dict matching :p0, :p1, :p2... placeholders
+                    param_dict = {f"p{i}": v for i, v in enumerate(params)}
+                    conn.execute(text(query), param_dict)
+                else:
+                    conn.execute(text(query))
+            elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            logger.info("db_write_executed", query=query[:200], elapsed_ms=elapsed_ms)
+        except Exception as e:
+            elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            logger.error("db_write_failed", query=query[:200], elapsed_ms=elapsed_ms, error=str(e))
+            raise
 
     def get_tables(self) -> list[str]:
         """Returns all table names in the current database."""
-        rows = self.execute_query("SHOW TABLES")
-        return [list(row.values())[0] for row in rows]
+        if self._tables is None:
+            rows = self.execute_query("SHOW TABLES")
+            self._tables = [list(row.values())[0] for row in rows]
+        return self._tables
 
     def get_table_schema(self, table_name: str) -> list[dict]:
         """Returns column details for a specific table."""
-        _validate_identifier(table_name, "table_name")
-        rows = self.execute_query(f"DESCRIBE `{table_name}`")
-        return [
-            {
-                "name": row["Field"],
-                "type": row["Type"],
-                "null": row["Null"],
-                "key": row["Key"],
-                "default": row["Default"],
-            }
-            for row in rows
-        ]
+        if table_name not in self._table_schemas:
+            _validate_identifier(table_name, "table_name")
+            rows = self.execute_query(f"DESCRIBE `{table_name}`")
+            self._table_schemas[table_name] = [
+                {
+                    "name": row["Field"],
+                    "type": row["Type"],
+                    "null": row["Null"],
+                    "key": row["Key"],
+                    "default": row["Default"],
+                }
+                for row in rows
+            ]
+        return self._table_schemas[table_name]
 
     def get_foreign_keys(self, table_name: str) -> list[dict]:
         """Returns foreign key relationships for a table."""
-        query = """
-        SELECT 
-            COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
-        FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
-        WHERE TABLE_SCHEMA = :schema_name
-            AND TABLE_NAME = :table_name
-            AND REFERENCED_TABLE_NAME IS NOT NULL
-        """
-        return self.execute_query(query, {"schema_name": self.db_name, "table_name": table_name})
+        if table_name not in self._foreign_keys:
+            query = """
+            SELECT 
+                COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
+            FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+            WHERE TABLE_SCHEMA = :schema_name
+                AND TABLE_NAME = :table_name
+                AND REFERENCED_TABLE_NAME IS NOT NULL
+            """
+            self._foreign_keys[table_name] = self.execute_query(query, {"schema_name": self.db_name, "table_name": table_name})
+        return self._foreign_keys[table_name]
+
+    def clear_schema_cache(self):
+        """Clears all schema caching to allow schema refreshes."""
+        self._tables = None
+        self._table_schemas.clear()
+        self._foreign_keys.clear()
+        logger.info("database_schema_cache_cleared")
 
     def get_sample_values(self, table_name: str, column_name: str, limit: int = 5) -> list:
         """Returns sample distinct values for a column."""

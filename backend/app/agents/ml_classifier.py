@@ -63,6 +63,10 @@ class MLIntentClassifier:
 
     def _try_load(self):
         """Attempt to load the pre-trained model and encoder."""
+        if os.environ.get("DISABLE_ML_INTENT", "false").lower() in ("true", "1", "yes"):
+            logger.info("ml_classifier_disabled_by_env")
+            return
+
         if not os.path.exists(self._model_path):
             logger.info("ml_classifier_model_not_found", path=self._model_path)
             return

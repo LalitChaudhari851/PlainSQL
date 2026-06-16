@@ -257,6 +257,11 @@ def _try_ml_classification(user_query: str) -> IntentClassification | None:
     Returns an IntentClassification if the model is available and confident,
     or None to signal the caller should use the heuristic fallback.
     """
+    import os
+    if os.environ.get("DISABLE_ML_INTENT", "false").lower() in ("true", "1", "yes"):
+        logger.debug("ml_classification_disabled_by_env")
+        return None
+
     try:
         from app.agents.ml_classifier import get_ml_classifier
 

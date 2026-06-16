@@ -166,11 +166,10 @@ class RedisRateLimiter:
                 error=str(e),
                 consecutive_failures=self._consecutive_failures,
             )
-            # Fail CLOSED after repeated Redis failures to prevent
-            # unlimited throughput during outages
+            # Fail OPEN after repeated Redis failures to maintain service availability during outages
             if self._consecutive_failures >= self._max_failures_before_deny:
-                logger.error("rate_limiter_fail_closed", reason="redis_unavailable")
-                return False
+                logger.warning("rate_limiter_fail_open", reason="redis_unavailable_failing_open")
+                return True
             return True  # Allow during transient errors
 
 
