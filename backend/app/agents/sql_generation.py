@@ -100,6 +100,12 @@ Generate a corrected version.
             "sql_explanation": explanation,
             "friendly_message": message,
             "prompt_version": prompt_version,
+            # Clear stale validation state from previous retry cycle.
+            # Without this, LangGraph merges old is_valid=False into the
+            # new state, causing route_validation to loop forever.
+            "is_valid": None,
+            "validation_errors": [],
+            "sanitized_sql": "",
         }
     except Exception as e:
         logger.error("sql_generation_failed", error=str(e))
