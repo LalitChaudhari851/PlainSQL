@@ -77,6 +77,9 @@ class SemanticCache:
         try:
             import sentence_transformers
             import numpy
+            # Reference modules to satisfy unused import checks
+            _ = sentence_transformers
+            _ = numpy
             return True
         except ImportError:
             return False

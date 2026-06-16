@@ -4,7 +4,6 @@ Includes SSE streaming for real-time pipeline feedback.
 """
 
 import json
-import time
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from app.api.schemas import (
@@ -84,7 +83,6 @@ def create_chat_router(orchestrator, auth_dep, cache, rate_limiter, tracer, expl
             raise HTTPException(429, "Rate limit exceeded.")
 
         async def event_generator():
-            sql = ""
             async for event in orchestrator.aprocess_query_streaming(
                 user_query=request.question,
                 conversation_history=request.history,
@@ -92,11 +90,6 @@ def create_chat_router(orchestrator, auth_dep, cache, rate_limiter, tracer, expl
                 user_role=current_user.get("role", "viewer"),
             ):
                 event_type = event.get("type", "message")
-                
-                # Check for SQL to trace
-                if event_type == "sql":
-                    sql = event.get("sql", "")
-                    
                 yield _sse_event(event_type, event)
 
         return StreamingResponse(

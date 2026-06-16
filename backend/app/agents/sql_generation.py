@@ -89,6 +89,7 @@ Generate a corrected version.
                 "friendly_message": "I couldn't generate a query for that request. Could you rephrase?",
                 "error": "Empty SQL output from LLM",
                 "error_agent": "sql_generation",
+                "prompt_version": prompt_version,
             }
 
         # Clean SQL
@@ -98,6 +99,7 @@ Generate a corrected version.
             "generated_sql": sql_query,
             "sql_explanation": explanation,
             "friendly_message": message,
+            "prompt_version": prompt_version,
         }
     except Exception as e:
         logger.error("sql_generation_failed", error=str(e))
@@ -107,6 +109,7 @@ Generate a corrected version.
             "friendly_message": "An error occurred while generating the query.",
             "error": f"SQL generation failed: {str(e)}",
             "error_agent": "sql_generation",
+            "prompt_version": prompt_version,
         }
 
 
