@@ -9,6 +9,7 @@ export default function App() {
   const booted = useChatStore(s => s.booted);
   const setHealth = useChatStore(s => s.setHealth);
   const setSchemaTables = useChatStore(s => s.setSchemaTables);
+  const setSchemaText = useChatStore(s => s.setSchemaText);
 
   // Poll health every 30 seconds after boot
   useEffect(() => {
@@ -27,11 +28,16 @@ export default function App() {
     return () => clearInterval(id);
   }, [booted, setHealth]);
 
-  // Load schema after boot
+  // Load schema after boot — store both table names and schema_text
   useEffect(() => {
     if (!booted) return;
-    fetchSchema().then(d => { if (d.tables) setSchemaTables(d.tables); }).catch(() => {});
-  }, [booted, setSchemaTables]);
+    fetchSchema()
+      .then(d => {
+        if (d.tables) setSchemaTables(d.tables);
+        if (d.schema_text) setSchemaText(d.schema_text);
+      })
+      .catch(() => {});
+  }, [booted, setSchemaTables, setSchemaText]);
 
   return (
     <div className="h-full w-full overflow-hidden">

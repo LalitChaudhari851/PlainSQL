@@ -18,8 +18,16 @@ function persistState(chats, activeChatId, savedQueries) {
       ...c,
       messages: c.messages.map(m => ({ ...m, streaming: false, pending: false }))
     }));
-    const sidebarCollapsed = useChatStore?.getState()?.sidebarCollapsed ?? false;
-    localStorage.setItem('plainsql_v2', JSON.stringify({ chats: clean, activeChatId, savedQueries, sidebarCollapsed }));
+    const state = useChatStore?.getState() ?? {};
+    localStorage.setItem('plainsql_v2', JSON.stringify({
+      chats: clean,
+      activeChatId,
+      savedQueries,
+      sidebarCollapsed: state.sidebarCollapsed ?? false,
+      schemaFolderOpen: state.schemaFolderOpen ?? false,
+      expandedGroups: state.expandedGroups ?? {},
+      expandedTables: state.expandedTables ?? {},
+    }));
   } catch { /* quota errors are non-fatal */ }
 }
 
@@ -33,15 +41,39 @@ const useChatStore = create((set, get) => ({
   // ── Sidebar collapse state ────────────────────────────
   sidebarCollapsed: persisted?.sidebarCollapsed ?? false,
   setSidebarCollapsed: (v) => set(s => {
-    // Wait set runs synchronously, so we will persist after state updates
     setTimeout(() => persistState(get().chats, get().activeChatId, get().savedQueries), 0);
     return { sidebarCollapsed: v };
+  }),
+
+  // ── Schema folder (top-level "Tables" section) ────────
+  schemaFolderOpen: persisted?.schemaFolderOpen ?? persisted?.tablesExpanded ?? false,
+  setSchemaFolderOpen: (v) => set(s => {
+    const next = typeof v === 'function' ? v(s.schemaFolderOpen) : v;
+    setTimeout(() => persistState(get().chats, get().activeChatId, get().savedQueries), 0);
+    return { schemaFolderOpen: next };
+  }),
+
+  // ── Expanded groups (per-group collapse state) ────────
+  expandedGroups: persisted?.expandedGroups ?? {},
+  setExpandedGroup: (groupName, value) => set(s => {
+    const next = { ...s.expandedGroups, [groupName]: value };
+    setTimeout(() => persistState(get().chats, get().activeChatId, get().savedQueries), 0);
+    return { expandedGroups: next };
+  }),
+
+  // ── Expanded tables (per-table column panel state) ────
+  expandedTables: persisted?.expandedTables ?? {},
+  toggleExpandedTable: (tableName) => set(s => {
+    const next = { ...s.expandedTables, [tableName]: !s.expandedTables[tableName] };
+    setTimeout(() => persistState(get().chats, get().activeChatId, get().savedQueries), 0);
+    return { expandedTables: next };
   }),
 
   // ── System status ──────────────────────────────────────
   health: { status: 'checking', latency: null },
   setHealth: (health) => set({ health }),
 
+  // ── Schema data ────────────────────────────────────────
   schemaTables: [
     'departments',
     'employees',
@@ -63,6 +95,8 @@ const useChatStore = create((set, get) => ({
     'query_audit_log',
   ],
   setSchemaTables: (tables) => set({ schemaTables: tables }),
+  schemaText: '',
+  setSchemaText: (text) => set({ schemaText: text }),
   selectedSchema: 'default',
   setSelectedSchema: (s) => set({ selectedSchema: s }),
 

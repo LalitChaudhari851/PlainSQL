@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Plus, 
@@ -7,62 +7,14 @@ import {
   Trash2, 
   X, 
   Database, 
-  ChevronRight, 
   Sparkles, 
   Search, 
   PanelLeftClose, 
   PanelLeft, 
   Settings, 
-  ArrowRight,
-  Hash
 } from 'lucide-react';
 import useChatStore from '../../store/useChatStore';
-
-const TABLE_GROUPS = {
-  'accounts': 'Core SaaS',
-  'contacts': 'Core SaaS',
-  'workspaces': 'Core SaaS',
-  'workspace_users': 'Core SaaS',
-  
-  'departments': 'HR & Staff',
-  'employees': 'HR & Staff',
-  
-  'plans': 'Billing',
-  'products': 'Billing',
-  'feature_catalog': 'Billing',
-  'subscriptions': 'Billing',
-  'invoices': 'Billing',
-  'payments': 'Billing',
-  
-  'opportunities': 'Sales',
-  
-  'support_tickets': 'Support & Ops',
-  'ticket_events': 'Support & Ops',
-  'incidents': 'Support & Ops',
-  'product_usage_daily': 'Support & Ops',
-  'query_audit_log': 'Support & Ops',
-};
-
-const MOCK_COLUMNS = {
-  departments: ['id', 'name', 'manager_id', 'location'],
-  employees: ['id', 'first_name', 'last_name', 'email', 'department_id', 'salary', 'hire_date'],
-  plans: ['id', 'name', 'price', 'billing_interval', 'features'],
-  products: ['id', 'name', 'sku', 'price', 'status'],
-  feature_catalog: ['id', 'name', 'code', 'status'],
-  accounts: ['id', 'name', 'domain', 'industry', 'owner_id', 'created_at'],
-  contacts: ['id', 'account_id', 'first_name', 'last_name', 'email', 'phone'],
-  workspaces: ['id', 'account_id', 'name', 'slug', 'created_at'],
-  workspace_users: ['workspace_id', 'user_id', 'role', 'joined_at'],
-  subscriptions: ['id', 'account_id', 'plan_id', 'status', 'start_date', 'end_date'],
-  invoices: ['id', 'subscription_id', 'amount', 'due_date', 'status'],
-  payments: ['id', 'invoice_id', 'amount', 'payment_method', 'status', 'created_at'],
-  opportunities: ['id', 'account_id', 'name', 'amount', 'stage', 'closed_at'],
-  product_usage_daily: ['date', 'workspace_id', 'queries_run', 'active_users'],
-  support_tickets: ['id', 'account_id', 'subject', 'status', 'priority', 'created_at'],
-  ticket_events: ['id', 'ticket_id', 'event_type', 'created_at'],
-  incidents: ['id', 'title', 'severity', 'status', 'created_at'],
-  query_audit_log: ['id', 'user_id', 'query_text', 'execution_time_ms', 'status'],
-};
+import SchemaTree from './sidebar/SchemaTree';
 
 function SectionHeader({ title, count, collapsed, onToggle, isSidebarCollapsed }) {
   if (isSidebarCollapsed) return <div className="h-px bg-border-1 my-3 mx-2" />;
@@ -74,10 +26,19 @@ function SectionHeader({ title, count, collapsed, onToggle, isSidebarCollapsed }
     >
       <div className="flex items-center gap-1.5">
         {onToggle && (
-          <ChevronRight
-            size={11}
+          <svg
+            width="11"
+            height="11"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
             className={`text-t4 transition-transform duration-200 ${!collapsed ? 'rotate-90' : ''}`}
-          />
+          >
+            <path d="m9 18 6-6-6-6" />
+          </svg>
         )}
         <span className="text-[10px] font-bold uppercase tracking-widest text-t4 group-hover:text-t3 transition-colors">{title}</span>
       </div>
@@ -113,12 +74,10 @@ export default function Sidebar({ open, onClose }) {
   const activeChatId = useChatStore(s => s.activeChatId);
   const savedQueries = useChatStore(s => s.savedQueries);
   const health = useChatStore(s => s.health);
-  const schemaTables = useChatStore(s => s.schemaTables);
   const selectedSchema = useChatStore(s => s.selectedSchema);
   const newChat = useChatStore(s => s.newChat);
   const selectChat = useChatStore(s => s.selectChat);
   const deleteChat = useChatStore(s => s.deleteChat);
-  const setSelectedSchema = useChatStore(s => s.setSelectedSchema);
   const sidebarCollapsed = useChatStore(s => s.sidebarCollapsed);
   const setSidebarCollapsed = useChatStore(s => s.setSidebarCollapsed);
 
@@ -128,6 +87,29 @@ export default function Sidebar({ open, onClose }) {
   const [savedCollapsed, setSavedCollapsed] = useState(false);
   
   const searchInputRef = useRef(null);
+
+  // ── Body scroll lock when mobile drawer is open ──────────
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [open]);
+
+  // ── Escape key closes mobile drawer ──────────────────────
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose?.();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [open, onClose]);
 
   // Global Ctrl+K shortcut to focus search
   useEffect(() => {
@@ -154,10 +136,12 @@ export default function Sidebar({ open, onClose }) {
     if (open) onClose?.();
   };
 
-  // Filter logic
-  const filteredTables = schemaTables.filter(t => 
-    t.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Callback for when a table is selected (closes mobile drawer)
+  const handleTableSelected = useCallback(() => {
+    if (open) onClose?.();
+  }, [open, onClose]);
+
+  // Filter logic — schema filtering is handled by SchemaTree internally
   const filteredChats = chats.filter(c => 
     c.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -165,24 +149,18 @@ export default function Sidebar({ open, onClose }) {
     q.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Group schema tables
-  const groupedTables = {};
-  filteredTables.forEach(t => {
-    const groupName = TABLE_GROUPS[t] || 'Other';
-    if (!groupedTables[groupName]) groupedTables[groupName] = [];
-    groupedTables[groupName].push(t);
-  });
-
   return (
     <>
-      {/* Mobile scrim */}
+      {/* Mobile scrim — dark translucent backdrop */}
       <AnimatePresence>
         {open && (
           <motion.div
             key="scrim"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
             onClick={onClose}
             className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm lg:hidden"
+            aria-hidden="true"
           />
         )}
       </AnimatePresence>
@@ -311,74 +289,14 @@ export default function Sidebar({ open, onClose }) {
             </div>
           )}
 
-          {/* Schema Explorer */}
+          {/* ── Schema Explorer ────────────────────────────── */}
           {!sidebarCollapsed ? (
-            <>
-              <SectionHeader
-                title="Schema"
-                count={filteredTables.length}
-                collapsed={schemaCollapsed}
-                onToggle={() => setSchemaCollapsed(v => !v)}
-              />
-              <AnimatePresence initial={false}>
-                {!schemaCollapsed && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="px-2 pb-2 space-y-1">
-                      {/* All tables selector */}
-                      <button
-                        onClick={() => setSelectedSchema('default')}
-                        className={`nav-item relative w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-left ${
-                          selectedSchema === 'default'
-                            ? 'active text-white font-medium'
-                            : 'text-t2'
-                        }`}
-                      >
-                        <Database size={12} className={selectedSchema === 'default' ? 'text-brand-light' : 'text-t4'} />
-                        <span>All tables</span>
-                        <span className="ml-auto text-[10px] text-t4 font-mono tabular-nums bg-white/[0.02] border border-white/[0.04] px-1.5 py-0.2 rounded-sm">{schemaTables.length}</span>
-                      </button>
-
-                      {/* Grouped Table Explorer */}
-                      <div className="space-y-3 mt-2 pl-1">
-                        {Object.entries(groupedTables).map(([group, tables]) => (
-                          <div key={group} className="space-y-1">
-                            <span className="text-[9px] font-bold text-t4 uppercase tracking-wider block pl-2">{group}</span>
-                            <div className="space-y-0.5">
-                              {tables.map(t => {
-                                const isSel = selectedSchema === t;
-                                const cols = MOCK_COLUMNS[t]?.length || 4;
-                                return (
-                                  <button
-                                    key={t}
-                                    onClick={() => setSelectedSchema(t)}
-                                    className={`nav-item relative w-full flex items-center justify-between px-2.5 py-1.5 text-xs text-left ${
-                                      isSel ? 'active text-white font-medium' : 'text-t3 hover:text-t2'
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-2 min-w-0">
-                                      <span className={`w-1 h-1 rounded-full flex-shrink-0 ${isSel ? 'bg-brand-light shadow-[0_0_6px_rgba(99,102,241,0.6)]' : 'bg-white/20'}`} />
-                                      <span className="truncate">{t}</span>
-                                    </div>
-                                    <span className="text-[9px] font-mono text-t4 opacity-60 flex-shrink-0 group-hover:opacity-100 transition-opacity pr-1 flex items-center gap-0.5">
-                                      <Hash size={8} /> {cols}
-                                    </span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </>
+            <SchemaTree
+              schemaCollapsed={schemaCollapsed}
+              onToggleSchema={() => setSchemaCollapsed(v => !v)}
+              onTableSelected={handleTableSelected}
+              searchQuery={searchQuery}
+            />
           ) : (
             <div className="flex justify-center py-2">
               <button
