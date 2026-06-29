@@ -47,3 +47,10 @@ out/
 
 # ── Evaluation Results ──────────────────────────────────
 evaluation_results.json
+
+# ── Local Debug/Test Scripts ─────────────────────────────
+backend/debug_script.py
+backend/api_query_script.py
+backend/debug_output.json
+db_test_nrr_relative.py
+scratch/

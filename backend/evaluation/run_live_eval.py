@@ -43,7 +43,7 @@ KNOWN_COLUMNS = {
 
 def load_dataset():
     """Load the evaluation dataset."""
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dataset.json")
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datasets", "train.json")
     with open(path) as f:
         return json.load(f)
 

@@ -569,7 +569,7 @@ class EvalRunner:
     def run(self, dataset_path: str = None) -> dict:
         """Run evaluation and return results."""
         if dataset_path is None:
-            dataset_path = os.path.join(os.path.dirname(__file__), "dataset.json")
+            dataset_path = os.path.join(os.path.dirname(__file__), "datasets", "train.json")
 
         with open(dataset_path, "r") as f:
             dataset = json.load(f)

@@ -17,14 +17,12 @@ from typing import Optional
 
 logger = structlog.get_logger()
 
-# Default path: prefer train split, fallback to legacy dataset.json
+# Default path: train split
 _EVAL_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
     "evaluation",
 )
-_TRAIN_PATH = os.path.join(_EVAL_DIR, "datasets", "train.json")
-_LEGACY_PATH = os.path.join(_EVAL_DIR, "dataset.json")
-_DEFAULT_EXAMPLES_PATH = _TRAIN_PATH if os.path.exists(_TRAIN_PATH) else _LEGACY_PATH
+_DEFAULT_EXAMPLES_PATH = os.path.join(_EVAL_DIR, "datasets", "train.json")
 
 
 class DynamicFewShotSelector:
