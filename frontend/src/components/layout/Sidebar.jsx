@@ -87,6 +87,22 @@ export default function Sidebar({ open, onClose }) {
   const [savedCollapsed, setSavedCollapsed] = useState(false);
   
   const searchInputRef = useRef(null);
+  const touchStartX = useRef(null);
+
+  // ── Close handler: closes drawer + focuses chat composer ─
+  const handleClose = useCallback(() => {
+    onClose?.();
+    requestAnimationFrame(() => {
+      document.querySelector('#composer-input')?.focus();
+    });
+  }, [onClose]);
+
+  // ── When mobile drawer opens, ensure sidebar isn't collapsed ─
+  useEffect(() => {
+    if (open && sidebarCollapsed) {
+      setSidebarCollapsed(false);
+    }
+  }, [open, sidebarCollapsed, setSidebarCollapsed]);
 
   // ── Body scroll lock when mobile drawer is open ──────────
   useEffect(() => {
@@ -104,12 +120,12 @@ export default function Sidebar({ open, onClose }) {
     const handler = (e) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        onClose?.();
+        handleClose();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [open, onClose]);
+  }, [open, handleClose]);
 
   // Global Ctrl+K shortcut to focus search
   useEffect(() => {
@@ -128,18 +144,30 @@ export default function Sidebar({ open, onClose }) {
 
   const handleSavedQuery = (query) => {
     window.dispatchEvent(new CustomEvent('plainsql:submit', { detail: { query } }));
-    if (open) onClose?.();
+    if (open) handleClose();
   };
 
   const handleNewChat = () => {
     newChat();
-    if (open) onClose?.();
+    if (open) handleClose();
   };
 
   // Callback for when a table is selected (closes mobile drawer)
   const handleTableSelected = useCallback(() => {
-    if (open) onClose?.();
-  }, [open, onClose]);
+    if (open) handleClose();
+  }, [open, handleClose]);
+
+  // ── Touch swipe-left-to-close ────────────────────────────
+  const handleTouchStart = useCallback((e) => {
+    touchStartX.current = e.touches[0].clientX;
+  }, []);
+
+  const handleTouchEnd = useCallback((e) => {
+    if (touchStartX.current === null) return;
+    const delta = e.changedTouches[0].clientX - touchStartX.current;
+    if (delta < -60) handleClose(); // 60px left swipe threshold
+    touchStartX.current = null;
+  }, [handleClose]);
 
   // Filter logic — schema filtering is handled by SchemaTree internally
   const filteredChats = chats.filter(c => 
@@ -158,7 +186,7 @@ export default function Sidebar({ open, onClose }) {
             key="scrim"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            onClick={onClose}
+            onClick={handleClose}
             className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm lg:hidden"
             aria-hidden="true"
           />
@@ -167,18 +195,19 @@ export default function Sidebar({ open, onClose }) {
 
       <motion.aside
         initial={false}
-        animate={{ 
-          width: sidebarCollapsed ? 64 : 280,
-          x: open ? 0 : undefined
-        }}
-        transition={{ duration: 250, ease: [0.16, 1, 0.3, 1] }}
-        className={`
-          flex flex-col h-full flex-shrink-0
-          border-r
-          fixed lg:relative z-40 lg:z-auto
-          transition-transform lg:translate-x-0
-          ${open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-        `}
+        animate={{ width: sidebarCollapsed ? 64 : 280 }}
+        transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        className={[
+          'flex flex-col h-full flex-shrink-0 border-r',
+          // Desktop: normal flow
+          'relative z-auto',
+          // Mobile (<lg): fixed overlay drawer with CSS transition
+          'max-lg:fixed max-lg:inset-y-0 max-lg:left-0 max-lg:z-40',
+          'max-lg:transition-transform max-lg:duration-300 max-lg:ease-[cubic-bezier(0.16,1,0.3,1)]',
+          open ? 'max-lg:translate-x-0' : 'max-lg:-translate-x-full',
+        ].join(' ')}
         style={{
           background: 'var(--surface-0)',
           borderColor: 'var(--border-1)',
@@ -202,9 +231,9 @@ export default function Sidebar({ open, onClose }) {
             )}
           </div>
           
-          {!sidebarCollapsed && (
-            <div className="flex items-center gap-1">
-              {/* New chat */}
+          <div className="flex items-center gap-1">
+            {/* New chat (desktop only) */}
+            {!sidebarCollapsed && (
               <button
                 onClick={handleNewChat}
                 className="hidden lg:flex w-7 h-7 rounded-lg items-center justify-center transition-colors hover:bg-white/5 text-t3 hover:text-t2 focus-ring"
@@ -213,16 +242,17 @@ export default function Sidebar({ open, onClose }) {
               >
                 <Plus size={15} />
               </button>
-              {/* Mobile close button */}
-              <button
-                onClick={onClose}
-                className="lg:hidden w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-white/5 text-t3 hover:text-t2 focus-ring"
-                aria-label="Close sidebar"
-              >
-                <X size={15} />
-              </button>
-            </div>
-          )}
+            )}
+            {/* Mobile close button — always rendered on mobile regardless of sidebarCollapsed */}
+            <button
+              onClick={handleClose}
+              className="lg:hidden w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-white/5 text-t3 hover:text-t2 focus-ring"
+              aria-label="Close sidebar"
+              style={{ pointerEvents: 'auto' }}
+            >
+              <X size={15} />
+            </button>
+          </div>
         </div>
 
         {/* Search Input Area */}
@@ -331,7 +361,7 @@ export default function Sidebar({ open, onClose }) {
                       layout
                       onHoverStart={() => setHoveredChat(chat.id)}
                       onHoverEnd={() => setHoveredChat(null)}
-                      onClick={() => { selectChat(chat.id); if (open) onClose?.(); }}
+                      onClick={() => { selectChat(chat.id); if (open) handleClose(); }}
                       className={`
                         nav-item relative group flex items-center gap-2.5 px-3 py-2 cursor-pointer
                         ${isActive ? 'active text-white font-medium' : 'text-t2'}
