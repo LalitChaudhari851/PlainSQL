@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
     GROQ_API_KEY: Optional[str] = None
-    GROQ_MODEL_PRIMARY: str = "groq/compound"
+    GROQ_MODEL_PRIMARY: str = "groq/compound-mini"
     GROQ_MODEL_FAST: str = "groq/compound-mini"
     GROQ_BASE_URL: str = "https://api.groq.com/openai/v1"
     OLLAMA_BASE_URL: str = "http://localhost:11434"

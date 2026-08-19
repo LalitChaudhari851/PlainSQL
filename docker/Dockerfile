@@ -21,6 +21,8 @@ COPY backend/ .
 COPY frontend/ /frontend/
 COPY .env.example .env.example
 
+ENV DISABLE_RERANKER=true
+
 # Create non-root user
 RUN useradd -m -r plainsql && \
     chown -R plainsql:plainsql /app && \
