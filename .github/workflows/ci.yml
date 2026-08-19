@@ -104,6 +104,8 @@ jobs:
         run: pip install pip-audit
 
       - name: Audit Dependencies
+        env:
+          PYTHONUTF8: "1"
         # pip-audit uses the OSV database. langgraph CVEs require 0.2→1.0 migration (breaking).
         run: |
           pip-audit -r backend/requirements.txt --desc \
